@@ -1,0 +1,147 @@
+---
+alwaysApply: true
+---
+# Task Breakdown – MVP Build Plan
+
+## Phase 1 – Setup & Development Environment (Day 1–2)
+- [ ] **Project Initialization**
+  - [ ] Init Next.js 15 + TypeScript + Tailwind + shadcn/ui
+  - [ ] Setup ESLint, Prettier, Husky pre-commit hooks
+  - [ ] Configure absolute imports and path aliases
+- [ ] **Database & Auth Setup**
+  - [ ] Setup Supabase project + Auth + Postgres
+  - [ ] Configure Supabase client (browser + server)
+  - [ ] Setup email templates for OTP
+- [ ] **Environment & Deployment**
+  - [ ] Add `.env` secrets for Supabase & PayOS (stub)
+  - [ ] Setup Vercel project + environment variables
+  - [ ] Deploy initial version to Vercel
+- [ ] **Testing Setup**
+  - [ ] Setup Jest + React Testing Library
+  - [ ] Configure test database for integration tests
+
+## Phase 2 – Database Schema & Security (Day 2–3)
+- [ ] **Database Schema Design**
+  - [ ] Create tables: users, wallets, topups, matches, match_players, ledger, payout_requests
+  - [ ] Define relationships and foreign keys
+  - [ ] Add audit fields (created_at, updated_at, created_by)
+- [ ] **Security Implementation**
+  - [ ] Add RLS policies (user sees own data only)
+  - [ ] Add SQL indexes (`ref_id`, `tx_ref`, `user_id`, `match_id`)
+  - [ ] Setup rate limiting middleware
+- [ ] **Database Testing**
+  - [ ] Test CRUD operations in Supabase console
+  - [ ] Verify RLS policies work correctly
+  - [ ] Test database constraints and triggers
+
+## Phase 3 – Wallet & Top-up Flow (Day 3–4)
+- [ ] **Frontend Components**
+  - [ ] Build Wallet page (balance display, top-up form, transaction history)
+  - [ ] Create reusable form components with validation
+  - [ ] Add loading states and error handling
+- [ ] **API Implementation**
+  - [ ] API `/api/topup/init` – generate unique `tx_ref`, validate amount
+  - [ ] API `/api/topup/confirm` – mark confirmed, +balance, add ledger entry
+  - [ ] API `/api/wallet/balance` – get current balance and recent transactions
+- [ ] **Payment Integration**
+  - [ ] Setup PayOS payment link generation
+  - [ ] (Optional) Setup fake webhook `/api/payos/webhook` for testing
+- [ ] **Testing**
+  - [ ] Unit tests for wallet components
+  - [ ] Integration tests for top-up flow
+  - [ ] Test edge cases (duplicate tx_ref, invalid amounts)
+
+## Phase 4 – Match System (Day 4–5)
+- [ ] **Frontend UI**
+  - [ ] Create Match page (create form, join button, match details)
+  - [ ] Match List page (filtering, pagination, status indicators)
+  - [ ] My Matches page (joined matches, match history)
+- [ ] **API Implementation**
+  - [ ] API `/api/matches` – create match with validation
+  - [ ] API `/api/matches/:id/join` – validate balance, deduct entry_fee, ledger "join"
+  - [ ] API `/api/matches/:id/leave` – refund entry fee if match not started
+- [ ] **Match Logic**
+  - [ ] Auto lock when full (8 players)
+  - [ ] Status transitions (`open` → `ongoing` → `completed`)
+  - [ ] Prevent duplicate joins, validate match rules
+- [ ] **Testing**
+  - [ ] Test match creation and joining flow
+  - [ ] Test concurrent join attempts
+  - [ ] Test match status transitions
+
+## Phase 5 – Proof & Settlement (Day 5–6)
+- [ ] **Frontend Components**
+  - [ ] Upload proof image component (drag & drop, preview)
+  - [ ] Winner selection interface
+  - [ ] Match result display
+- [ ] **Storage & File Handling**
+  - [ ] Setup Supabase Storage buckets
+  - [ ] Implement image upload with compression
+  - [ ] Add file validation (size, type, security)
+- [ ] **Settlement API**
+  - [ ] API `/api/matches/:id/settle`
+    - Compute pool, service fee, prize distribution
+    - Update wallets & ledgers (win, fee)
+    - Generate settlement report
+- [ ] **Admin Features**
+  - [ ] Admin-only "moderate" route for dispute resolution
+  - [ ] Admin dashboard for match oversight
+- [ ] **Testing**
+  - [ ] Test image upload and processing
+  - [ ] Test settlement calculations
+  - [ ] Test admin moderation features
+
+## Phase 6 – Withdraw System (Day 6–7)
+- [ ] **Frontend Components**
+  - [ ] Withdraw form with validation
+  - [ ] Withdrawal request list and status tracking
+  - [ ] Balance history and transaction details
+- [ ] **API Implementation**
+  - [ ] API `/api/payouts` – create request, deduct virtual balance
+  - [ ] API `/api/payouts/:id/status` – check withdrawal status
+- [ ] **Admin Panel**
+  - [ ] Admin page: approve → mark complete + proof_tx
+  - [ ] Export CSV payout summary for manual transfer
+  - [ ] Bulk approval functionality
+- [ ] **Testing**
+  - [ ] Test withdrawal request flow
+  - [ ] Test admin approval process
+  - [ ] Test CSV export functionality
+
+## Phase 7 – Legal UX & Documentation (Day 7)
+- [ ] **Legal Pages**
+  - [ ] "How it works" page with clear explanations
+  - [ ] "Terms of Service" page with proper legal language
+  - [ ] "Privacy Policy" page
+- [ ] **UI/UX Improvements**
+  - [ ] Update wording: "Tạm ứng dịch vụ", "Hoàn tạm ứng", "Thi đấu kỹ năng"
+  - [ ] Add tooltips and help text for complex features
+  - [ ] Footer disclaimer for Riot/Non-affiliation
+- [ ] **User Onboarding**
+  - [ ] Welcome tour for new users
+  - [ ] FAQ section
+  - [ ] Contact/support information
+
+## Phase 8 – Testing & Deployment (Day 7–8)
+- [ ] **End-to-End Testing**
+  - [ ] Test complete flow: topup → join → settle → withdraw
+  - [ ] Test edge cases: insufficient balance, duplicate join, double settle
+  - [ ] Test error scenarios and recovery
+- [ ] **Performance & Security**
+  - [ ] Load testing for concurrent users
+  - [ ] Security audit of API endpoints
+  - [ ] Rate limiting verification
+- [ ] **Monitoring & Logging**
+  - [ ] Setup audit logs for sensitive operations
+  - [ ] Error alert to Discord/Slack
+  - [ ] Performance monitoring setup
+- [ ] **Deployment**
+  - [ ] Deploy stable version to Vercel (demo environment)
+  - [ ] Setup staging environment for testing
+  - [ ] Configure production environment variables
+
+## Post-MVP (Optional Next Sprint)
+- [ ] Integrate PayOS webhook for auto top-up
+- [ ] Implement payout API for auto withdraw
+- [ ] Add KYC for large withdrawals
+- [ ] Setup daily cron for auto-refund inactive balances

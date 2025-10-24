@@ -1,0 +1,55 @@
+---
+alwaysApply: true
+---
+# Tech Stack
+
+## Frontend
+- Framework: **Next.js 15 (App Router)**
+- Language: **TypeScript**
+- Styling: **TailwindCSS + shadcn/ui**
+- Form & Validation: **React Hook Form + Zod**
+- Authentication: **Supabase Auth (Email OTP + Google OAuth)**
+- State & Query: **React Query / TanStack Query**
+- Deployment: **Vercel**
+
+## Backend (Server Actions & API Routes)
+- Runs on **Next.js Route Handlers (/app/api)**
+- **Business logic** for wallet, matches, payouts.
+- Use **Supabase client (Service Role)** for DB operations.
+- Validate input with **Zod schema** on all routes.
+
+## Database
+- **Supabase Postgres**
+- Row Level Security (RLS) enforced
+- Important tables:
+  - `users`, `wallets`, `topups`, `matches`, `match_players`
+  - `match_pool`, `ledger`, `payout_requests`
+- Policies: user sees/edits only own rows.
+
+## Storage
+- **Supabase Storage** for match result images (proof of win).
+
+## Payment Gateway
+- MVP: manual confirm using **Momo / VietQR / PayOS Payment Link**
+- Future: integrate **PayOS API (webhook + payout)**
+
+## Background Jobs
+- **Vercel Cron / Supabase Edge Functions**
+  - Auto-refund unused balance after X days.
+  - Daily reports and match cleanup.
+
+## Deployment / DevOps
+- Deploy on **Vercel**
+- Supabase (Singapore region)
+- `.env` includes:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `PAYOS_CLIENT_ID`
+  - `PAYOS_API_KEY`
+- Logs & Metrics: Vercel + Supabase logs + optional PostHog/Plausible.
+
+## Security
+- RLS enabled
+- Idempotency by `ref_id` in all money operations.
+- Rate limiting middleware per API route.
+- Audit table for sensitive events (topup, withdraw, settle).

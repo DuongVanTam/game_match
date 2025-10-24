@@ -1,0 +1,46 @@
+---
+alwaysApply: true
+---
+# Business Description
+
+## Overview
+A web platform organizing **Teamfight Tactics (TFT)** skill-based tournaments.
+Players pay a **small entry fee** to join matches and compete for rewards.
+
+## Core Principles
+1. **Skill-Based, Not Gambling**
+   - Results depend on gameplay performance, not luck.
+   - Rewards = “refund of service fee + bonus” to winners.
+
+2. **“Tạm ứng dịch vụ” model**
+   - Players pay a **temporary service advance** (not a deposit).
+   - Fees fund platform operation & prize distribution.
+
+3. **Virtual Ledger System**
+   - Real money only exists in your Momo/PayOS account.
+   - App tracks “virtual balance” in database.
+   - Users can request withdrawal = “refund of unused advance”.
+
+## Revenue Model
+- **Service Fee:** 10–20% per match from total entry fees.
+- **Additional:** potential ads, sponsorships, premium tournaments.
+
+## Payment Flow (MVP)
+1. User sends money via **Momo/PayOS** → goes to your personal account.
+2. Backend confirms → increases user’s **virtual balance**.
+3. User joins a match → balance deducted.
+4. After match:
+   - Winner gets virtual reward.
+   - Platform keeps service fee.
+5. User requests withdrawal → you transfer money manually.
+
+## Legal Alignment
+- Defines all transactions as **“service fees”** or **“temporary advances”**.
+- No “wallet” or “betting” terminology used.
+- Matches are **skill competitions**, not chance-based.
+- Refund policy: unused balance auto-refunded after defined period.
+
+## Future Scale Plan
+- Phase 2: PayOS API for automatic webhook confirmation & payout.
+- Phase 3: Register business (mã ngành 6312/6209).
+- Phase 4: Seek sponsors, run branded tournaments.
