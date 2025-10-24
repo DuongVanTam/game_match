@@ -46,7 +46,8 @@ export class DatabaseService {
     referenceId?: string,
     referenceType?: string,
     description?: string,
-    metadata?: Record<string, unknown>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata?: any
   ) {
     const { data, error } = await this.client.rpc('update_wallet_balance', {
       p_user_id: userId,
@@ -72,7 +73,8 @@ export class DatabaseService {
     return { data, error };
   }
 
-  async confirmTopup(txRef: string, paymentData?: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async confirmTopup(txRef: string, paymentData?: any) {
     const { data, error } = await this.client
       .from('topups')
       .update({
