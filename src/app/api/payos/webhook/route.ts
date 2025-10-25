@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify webhook signature
-    if (!payosService.verifyWebhookData(body, signature)) {
+    if (!payosService.verifyWebhookData(body)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
