@@ -13,7 +13,6 @@ interface Player {
   user_id: string;
   status: string | null;
   user: {
-    id: string;
     full_name: string;
     avatar_url?: string;
   };
