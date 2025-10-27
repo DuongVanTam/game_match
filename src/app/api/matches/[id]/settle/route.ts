@@ -17,8 +17,8 @@ export async function POST(
     const { id: matchId } = await params;
 
     // Get current user
-    const { user, error: authError } = await getCurrentUser();
-    if (authError || !user) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -7,8 +7,8 @@ export async function GET() {
     const client = createServerClient();
 
     // Get current user
-    const { user, error: authError } = await getCurrentUser();
-    if (authError || !user) {
+    const user = await getCurrentUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
