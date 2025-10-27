@@ -13,14 +13,53 @@ alwaysApply: true
   - [ ] Configure Supabase client (browser + server)
   - [ ] Setup email templates for OTP
 - [ ] **Environment & Deployment**
-  - [ ] Add `.env` secrets for Supabase & PayOS (stub)
+  - [ ] Add `.env` secrets for Supabase, PayOS & Riot API
   - [ ] Setup Vercel project + environment variables
   - [ ] Deploy initial version to Vercel
 - [ ] **Testing Setup**
   - [ ] Setup Jest + React Testing Library
   - [ ] Configure test database for integration tests
 
-## Phase 2 – Database Schema & Security (Day 2–3)
+## Phase 2 – Authentication & Authorization (Day 2)
+- [ ] **Riot API Integration**
+  - [ ] Setup Riot API client (API key, regions)
+  - [ ] API `/api/riot/summoner` – get summoner info by name
+  - [ ] API `/api/riot/tft-stats` – get TFT ranked stats
+  - [ ] Verify summoner exists and has TFT rank
+  - [ ] Rate limiting for Riot API calls
+- [ ] **Frontend Auth Components**
+  - [ ] Login page (email OTP + Riot account verification)
+  - [ ] Register page with Riot summoner name lookup
+  - [ ] Summoner verification component (name + region)
+  - [ ] Auth context provider and hooks
+  - [ ] Protected route wrapper component
+  - [ ] User profile dropdown with summoner info
+- [ ] **Backend Auth Implementation**
+  - [ ] Middleware for route protection
+  - [ ] API route authentication helpers
+  - [ ] User role management (admin/user)
+  - [ ] Session management and refresh tokens
+  - [ ] Riot account linking validation
+- [ ] **Database Schema for Auth**
+  - [ ] Extend users table with role field
+  - [ ] Add user_profiles table (summoner_name, region, puuid, summoner_id)
+  - [ ] Create admin_users table for admin management
+  - [ ] Add riot_accounts table for account verification
+- [ ] **Authorization Logic**
+  - [ ] Role-based access control (RBAC)
+  - [ ] Admin-only routes protection
+  - [ ] User can only access own data
+  - [ ] Admin can access all data
+  - [ ] Verify user has valid Riot account before joining matches
+- [ ] **Testing**
+  - [ ] Test Riot API integration
+  - [ ] Test summoner verification flow
+  - [ ] Test login/logout flow
+  - [ ] Test protected routes
+  - [ ] Test role-based permissions
+  - [ ] Test session persistence
+
+## Phase 3 – Database Schema & Security (Day 3)
 - [ ] **Database Schema Design**
   - [ ] Create tables: users, wallets, topups, matches, match_players, ledger, payout_requests
   - [ ] Define relationships and foreign keys
@@ -34,7 +73,7 @@ alwaysApply: true
   - [ ] Verify RLS policies work correctly
   - [ ] Test database constraints and triggers
 
-## Phase 3 – Wallet & Top-up Flow (Day 3–4)
+## Phase 4 – Wallet & Top-up Flow (Day 4–5)
 - [ ] **Frontend Components**
   - [ ] Build Wallet page (balance display, top-up form, transaction history)
   - [ ] Create reusable form components with validation
@@ -51,7 +90,7 @@ alwaysApply: true
   - [ ] Integration tests for top-up flow
   - [ ] Test edge cases (duplicate tx_ref, invalid amounts)
 
-## Phase 4 – Match System (Day 4–5)
+## Phase 5 – Match System (Day 5–6)
 - [ ] **Frontend UI**
   - [ ] Create Match page (create form, join button, match details)
   - [ ] Match List page (filtering, pagination, status indicators)
@@ -69,7 +108,7 @@ alwaysApply: true
   - [ ] Test concurrent join attempts
   - [ ] Test match status transitions
 
-## Phase 5 – Proof & Settlement (Day 5–6)
+## Phase 6 – Proof & Settlement (Day 6–7)
 - [ ] **Frontend Components**
   - [ ] Upload proof image component (drag & drop, preview)
   - [ ] Winner selection interface
@@ -91,7 +130,7 @@ alwaysApply: true
   - [ ] Test settlement calculations
   - [ ] Test admin moderation features
 
-## Phase 6 – Withdraw System (Day 6–7)
+## Phase 7 – Withdraw System (Day 7–8)
 - [ ] **Frontend Components**
   - [ ] Withdraw form with validation
   - [ ] Withdrawal request list and status tracking
@@ -108,7 +147,7 @@ alwaysApply: true
   - [ ] Test admin approval process
   - [ ] Test CSV export functionality
 
-## Phase 7 – Legal UX & Documentation (Day 7)
+## Phase 8 – Legal UX & Documentation (Day 8)
 - [ ] **Legal Pages**
   - [ ] "How it works" page with clear explanations
   - [ ] "Terms of Service" page with proper legal language
@@ -122,7 +161,7 @@ alwaysApply: true
   - [ ] FAQ section
   - [ ] Contact/support information
 
-## Phase 8 – Testing & Deployment (Day 7–8)
+## Phase 9 – Testing & Deployment (Day 8–9)
 - [ ] **End-to-End Testing**
   - [ ] Test complete flow: topup → join → settle → withdraw
   - [ ] Test edge cases: insufficient balance, duplicate join, double settle

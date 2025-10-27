@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 
 // Rate limiting store (in production, use Redis or database)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -37,7 +38,7 @@ function isRateLimited(key: string, maxRequests: number): boolean {
   return false;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip rate limiting for static files and internal Next.js routes
@@ -70,6 +71,44 @@ export function middleware(request: NextRequest) {
         },
       }
     );
+  }
+
+  // Authentication middleware
+  const supabase = createMiddlewareClient({
+    req: request,
+    res: NextResponse.next(),
+  });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Protected routes that require authentication
+  const protectedRoutes = ['/wallet', '/matches/create', '/matches/my'];
+  const adminRoutes = ['/admin'];
+
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
+  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+
+  // Redirect to login if accessing protected route without session
+  if (isProtectedRoute && !session) {
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Check admin access for admin routes
+  if (isAdminRoute && session) {
+    const { data: user } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (user?.role !== 'admin') {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
   }
 
   // Add security headers
