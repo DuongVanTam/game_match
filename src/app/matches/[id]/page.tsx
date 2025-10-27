@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -20,8 +20,12 @@ import {
   Gamepad2,
   UserPlus,
   UserMinus,
+  Camera,
+  CheckCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { ImageUpload } from '@/components/ImageUpload';
+import { WinnerSelection } from '@/components/WinnerSelection';
 
 interface Match {
   id: string;
@@ -61,8 +65,12 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [userJoined, setUserJoined] = useState(false);
+  const [showSettlement, setShowSettlement] = useState(false);
+  const [showWinnerSelection, setShowWinnerSelection] = useState(false);
+  const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const fetchMatch = async () => {
+  const fetchMatch = useCallback(async () => {
     try {
       const response = await fetch(`/api/matches/${matchId}`);
       if (response.ok) {
@@ -74,6 +82,13 @@ export default function MatchDetailPage() {
             (player: { status: string | null }) => player.status === 'active'
           )
         );
+        
+        // Get current user ID (you might want to get this from auth context)
+        // For now, we'll assume it's available from the match data
+        if (data.match_players && data.match_players.length > 0) {
+          // This is a placeholder - you should get current user from auth context
+          setCurrentUserId(data.match_players[0].user_id);
+        }
       }
     } catch (error) {
       console.error('Error fetching match:', error);
@@ -86,7 +101,7 @@ export default function MatchDetailPage() {
     if (matchId) {
       fetchMatch();
     }
-  }, [matchId]);
+  }, [matchId, fetchMatch]);
 
   const handleJoinMatch = async () => {
     setActionLoading(true);
@@ -130,6 +145,64 @@ export default function MatchDetailPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleStartSettlement = () => {
+    setShowSettlement(true);
+    setShowWinnerSelection(true);
+  };
+
+  const handleCancelSettlement = () => {
+    setShowSettlement(false);
+    setShowWinnerSelection(false);
+    setProofImageUrl(null);
+  };
+
+  const handleSelectWinner = async (winnerId: string) => {
+    if (!proofImageUrl) {
+      alert('Vui lòng upload hình ảnh bằng chứng trước khi chọn người thắng');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/matches/${matchId}/settle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          winnerId,
+          proofImageUrl,
+        }),
+      });
+
+      if (response.ok) {
+        await response.json(); // Consume the response
+        alert('Trận đấu đã được hoàn tất thành công!');
+        fetchMatch(); // Refresh match data
+        setShowSettlement(false);
+        setShowWinnerSelection(false);
+        setProofImageUrl(null);
+      } else {
+        const error = await response.json();
+        alert(`Lỗi: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error settling match:', error);
+      alert('Có lỗi xảy ra khi hoàn tất trận đấu');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProofUpload = (url: string) => {
+    setProofImageUrl(url);
+  };
+
+  const handleProofUploadError = (error: string) => {
+    console.error('Proof upload error:', error);
+    alert(`Lỗi upload hình ảnh: ${error}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -454,14 +527,29 @@ export default function MatchDetailPage() {
                 )}
 
                 {match.status === 'ongoing' && (
-                  <div className="text-center py-4">
-                    <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                    <p className="font-semibold text-blue-600">
-                      Trận đấu đang diễn ra
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Không thể tham gia hoặc rời trận đấu
-                    </p>
+                  <div className="space-y-4">
+                    <div className="text-center py-4">
+                      <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                      <p className="font-semibold text-blue-600">
+                        Trận đấu đang diễn ra
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Không thể tham gia hoặc rời trận đấu
+                      </p>
+                    </div>
+
+                    {/* Settlement button for match creator */}
+                    {match.created_by === currentUserId && (
+                      <Button
+                        onClick={handleStartSettlement}
+                        disabled={actionLoading}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Hoàn tất trận đấu
+                      </Button>
+                    )}
                   </div>
                 )}
 
@@ -504,6 +592,74 @@ export default function MatchDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Settlement Components */}
+      {showSettlement && (
+        <div className="mt-8 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Upload bằng chứng thắng cuộc
+              </CardTitle>
+              <CardDescription>
+                Upload hình ảnh chứng minh kết quả trận đấu (ví dụ: screenshot kết quả game)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {currentUserId && (
+                <ImageUpload
+                  userId={currentUserId}
+                  matchId={matchId}
+                  onUploadComplete={handleProofUpload}
+                  onUploadError={handleProofUploadError}
+                  disabled={actionLoading}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {showWinnerSelection && match && (
+            <WinnerSelection
+              players={match.match_players}
+              onSelectWinner={handleSelectWinner}
+              onCancel={handleCancelSettlement}
+              disabled={actionLoading || !proofImageUrl}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Match Result Display */}
+      {match?.status === 'completed' && match.proof_image_url && (
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                Kết quả trận đấu
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="text-center">
+                  <img
+                    src={match.proof_image_url}
+                    alt="Match result proof"
+                    className="max-w-full h-auto rounded-lg border mx-auto"
+                    style={{ maxHeight: '400px' }}
+                  />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Bằng chứng kết quả trận đấu
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,9 +2,11 @@
  * @jest-environment jsdom
  */
 
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import LoginPage from '@/app/auth/login/page';
 import RegisterPage from '@/app/auth/register/page';
+import { AuthProvider } from '@/lib/auth';
 
 // Mock Next.js router
 const mockPush = jest.fn();
@@ -22,11 +24,11 @@ const mockSignIn = jest.fn();
 const mockSignUp = jest.fn();
 const mockSignOut = jest.fn();
 
-jest.mock('@supabase/auth-helpers-nextjs', () => ({
-  createClientComponentClient: () => ({
+jest.mock('@supabase/ssr', () => ({
+  createBrowserClient: () => ({
     auth: {
       signInWithOtp: mockSignIn,
-      signUp: mockSignUp,
+      signUp: jest.fn((email, password, options) => mockSignUp(email, password, options.data?.full_name)),
       signOut: mockSignOut,
       onAuthStateChange: jest.fn(() => ({
         data: { subscription: { unsubscribe: jest.fn() } },
@@ -36,6 +38,11 @@ jest.mock('@supabase/auth-helpers-nextjs', () => ({
   }),
 }));
 
+// Helper function to render components with AuthProvider
+const renderWithAuth = (component: React.ReactElement) => {
+  return render(<AuthProvider>{component}</AuthProvider>);
+};
+
 describe('Authentication Flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,7 +51,7 @@ describe('Authentication Flow', () => {
 
   describe('Login Page', () => {
     it('renders login form correctly', () => {
-      render(<LoginPage />);
+      renderWithAuth(<LoginPage />);
 
       expect(screen.getByText('Sign in to TFT Match')).toBeInTheDocument();
       expect(screen.getByLabelText('Email')).toBeInTheDocument();
@@ -54,7 +61,7 @@ describe('Authentication Flow', () => {
     it('handles email submission', async () => {
       mockSignIn.mockResolvedValueOnce({ error: null });
 
-      render(<LoginPage />);
+      renderWithAuth(<LoginPage />);
 
       const emailInput = screen.getByLabelText('Email');
       const submitButton = screen.getByText('Send magic link');
@@ -75,7 +82,7 @@ describe('Authentication Flow', () => {
     it('displays error on sign in failure', async () => {
       mockSignIn.mockRejectedValueOnce(new Error('Invalid email'));
 
-      render(<LoginPage />);
+      renderWithAuth(<LoginPage />);
 
       const emailInput = screen.getByLabelText('Email');
       const submitButton = screen.getByText('Send magic link');
@@ -91,34 +98,35 @@ describe('Authentication Flow', () => {
 
   describe('Register Page', () => {
     it('renders register form correctly', () => {
-      render(<RegisterPage />);
+      renderWithAuth(<RegisterPage />);
 
-      expect(screen.getByText('Create Account')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Create Account' })).toBeInTheDocument();
       expect(screen.getByLabelText('Email')).toBeInTheDocument();
       expect(screen.getByLabelText('Password')).toBeInTheDocument();
-      expect(screen.getByText('Create Account')).toBeInTheDocument();
+      expect(screen.getByLabelText('Game Account')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create Account' })).toBeInTheDocument();
     });
 
     it('handles registration submission', async () => {
       mockSignUp.mockResolvedValueOnce({ error: null });
 
-      render(<RegisterPage />);
+      renderWithAuth(<RegisterPage />);
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
-      const submitButton = screen.getByText('Create Account');
+      const gameAccountInput = screen.getByLabelText('Game Account');
+      const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
       fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
       fireEvent.change(passwordInput, { target: { value: 'password123' } });
+      fireEvent.change(gameAccountInput, { target: { value: 'TestPlayer' } });
       fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(mockSignUp).toHaveBeenCalledWith(
           'test@example.com',
           'password123',
-          {
-            emailRedirectTo: expect.stringContaining('/auth/callback'),
-          }
+          'TestPlayer'
         );
       });
     });
@@ -126,14 +134,16 @@ describe('Authentication Flow', () => {
     it('displays error on registration failure', async () => {
       mockSignUp.mockRejectedValueOnce(new Error('Email already exists'));
 
-      render(<RegisterPage />);
+      renderWithAuth(<RegisterPage />);
 
       const emailInput = screen.getByLabelText('Email');
       const passwordInput = screen.getByLabelText('Password');
-      const submitButton = screen.getByText('Create Account');
+      const gameAccountInput = screen.getByLabelText('Game Account');
+      const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
       fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
       fireEvent.change(passwordInput, { target: { value: 'password123' } });
+      fireEvent.change(gameAccountInput, { target: { value: 'TestPlayer' } });
       fireEvent.click(submitButton);
 
       await waitFor(() => {

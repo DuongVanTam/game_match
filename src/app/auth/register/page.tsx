@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [gameAccount, setGameAccount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -31,7 +32,7 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      await signUp(email, password);
+      await signUp(email, password, gameAccount);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -100,6 +101,19 @@ export default function RegisterPage() {
                 required
                 disabled={loading}
                 minLength={6}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="gameAccount">Game Account</Label>
+              <Input
+                id="gameAccount"
+                type="text"
+                placeholder="Enter your game account name"
+                value={gameAccount}
+                onChange={(e) => setGameAccount(e.target.value)}
+                required
+                disabled={loading}
               />
             </div>
 

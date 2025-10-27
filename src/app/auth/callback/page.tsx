@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
+import { Database } from '@/types/database';
 import {
   Card,
   CardContent,
@@ -16,7 +17,10 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState('');
 
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -29,12 +33,48 @@ export default function AuthCallbackPage() {
         }
 
         if (data.session) {
+          // Check if user exists in our users table
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .single();
+
+          // If user doesn't exist, create user record
+          if (!existingUser) {
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: data.session.user.id,
+                email: data.session.user.email!,
+                full_name: data.session.user.user_metadata?.full_name || null,
+                role: 'user',
+                email_verified: data.session.user.email_confirmed_at ? true : false,
+              });
+
+            if (insertError) {
+              console.error('Error creating user:', insertError);
+            }
+
+            // Create wallet for new user
+            const { error: walletError } = await supabase
+              .from('wallets')
+              .insert({
+                user_id: data.session.user.id,
+                balance: 0,
+              });
+
+            if (walletError) {
+              console.error('Error creating wallet:', walletError);
+            }
+          }
+
           // User authenticated successfully, redirect to home
           router.push('/');
         } else {
           setError('No session found');
         }
-      } catch (_err) {
+      } catch {
         setError('An unexpected error occurred');
       } finally {
         setLoading(false);
