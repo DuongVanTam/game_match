@@ -95,7 +95,7 @@ export default function MatchDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [matchId]);
 
   useEffect(() => {
     if (matchId) {
