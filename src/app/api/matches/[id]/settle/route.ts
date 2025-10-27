@@ -89,19 +89,110 @@ export async function POST(
     const serviceFee = Math.floor(totalPool * serviceFeeRate);
     const prizeAmount = totalPool - serviceFee;
 
-    // Start transaction
-    const { error: transactionError } = await client.rpc('settle_match', {
-      p_match_id: matchId,
-      p_winner_id: winnerId,
-      p_prize_amount: prizeAmount,
-      p_service_fee: serviceFee,
-      p_proof_image_url: proofImageUrl || null,
-    });
+    // Update match status and winner
+    const { error: matchUpdateError } = await client
+      .from('matches')
+      .update({
+        status: 'completed',
+        winner_id: winnerId,
+        proof_image_url: proofImageUrl || null,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId);
 
-    if (transactionError) {
-      console.error('Settlement transaction error:', transactionError);
+    if (matchUpdateError) {
+      console.error('Match update error:', matchUpdateError);
       return NextResponse.json(
-        { error: 'Failed to settle match' },
+        { error: 'Failed to update match' },
+        { status: 500 }
+      );
+    }
+
+    // Get winner's current balance
+    const { data: winnerWallet, error: walletError } = await client
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', winnerId)
+      .single();
+
+    if (walletError || !winnerWallet) {
+      console.error('Winner wallet error:', walletError);
+      return NextResponse.json(
+        { error: 'Winner wallet not found' },
+        { status: 500 }
+      );
+    }
+
+    // Update winner's wallet
+    const { error: walletUpdateError } = await client
+      .from('wallets')
+      .update({
+        balance: winnerWallet.balance + prizeAmount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', winnerId);
+
+    if (walletUpdateError) {
+      console.error('Wallet update error:', walletUpdateError);
+      return NextResponse.json(
+        { error: 'Failed to update winner wallet' },
+        { status: 500 }
+      );
+    }
+
+    // Add ledger entry for prize
+    const { error: prizeLedgerError } = await client
+      .from('ledger')
+      .insert({
+        user_id: winnerId,
+        transaction_type: 'win_prize',
+        amount: prizeAmount,
+        balance_after: winnerWallet.balance + prizeAmount,
+        reference_id: matchId,
+        reference_type: 'match',
+        description: `Giải thưởng từ trận đấu: ${match.title}`,
+        metadata: {
+          match_id: matchId,
+          match_title: match.title,
+          prize_amount: prizeAmount,
+          service_fee: serviceFee,
+          total_pool: prizeAmount + serviceFee,
+        },
+      });
+
+    if (prizeLedgerError) {
+      console.error('Prize ledger error:', prizeLedgerError);
+      return NextResponse.json(
+        { error: 'Failed to record prize transaction' },
+        { status: 500 }
+      );
+    }
+
+    // Add ledger entry for service fee (platform revenue)
+    const { error: serviceFeeLedgerError } = await client
+      .from('ledger')
+      .insert({
+        user_id: '00000000-0000-0000-0000-000000000000', // Platform user ID
+        transaction_type: 'service_fee',
+        amount: serviceFee,
+        balance_after: 0, // Platform balance (not tracked)
+        reference_id: matchId,
+        reference_type: 'match',
+        description: `Phí dịch vụ từ trận đấu: ${match.title}`,
+        metadata: {
+          match_id: matchId,
+          match_title: match.title,
+          prize_amount: prizeAmount,
+          service_fee: serviceFee,
+          total_pool: prizeAmount + serviceFee,
+        },
+      });
+
+    if (serviceFeeLedgerError) {
+      console.error('Service fee ledger error:', serviceFeeLedgerError);
+      return NextResponse.json(
+        { error: 'Failed to record service fee transaction' },
         { status: 500 }
       );
     }
