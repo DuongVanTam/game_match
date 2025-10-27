@@ -4,11 +4,11 @@ import { getCurrentUser } from '@/lib/auth-server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const client = createServerClient();
-    const { id: payoutId } = params;
+    const { id: payoutId } = await params;
 
     // Get current user
     const user = await getCurrentUser();

@@ -17,11 +17,11 @@ const updatePayoutSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const client = createServerClient();
-    const { id: payoutId } = params;
+    const { id: payoutId } = await params;
 
     // Get current user and check if admin
     const user = await getCurrentUser();
