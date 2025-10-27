@@ -11,7 +11,7 @@ import { Trophy, Users, AlertCircle, CheckCircle } from 'lucide-react';
 interface Player {
   id: string;
   user_id: string;
-  status: string;
+  status: string | null;
   user: {
     id: string;
     full_name: string;
