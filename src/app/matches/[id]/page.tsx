@@ -37,6 +37,7 @@ interface Match {
   status: 'open' | 'ongoing' | 'completed' | 'cancelled';
   created_at: string;
   created_by: string;
+  proof_image_url?: string | null;
   created_by_user: {
     full_name: string;
     avatar_url?: string;
