@@ -8,66 +8,38 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Wallet, Plus, History, CreditCard } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-
-// Validation schemas
-const topupSchema = z.object({
-  amount: z
-    .number({ message: 'Số tiền là bắt buộc' })
-    .min(10000, 'Số tiền tối thiểu là 10,000 VNĐ')
-    .max(10000000, 'Số tiền tối đa là 10,000,000 VNĐ'),
-  paymentMethod: z.enum(['momo', 'payos'], {
-    message: 'Vui lòng chọn phương thức thanh toán',
-  }),
-});
-
-type TopupFormData = z.infer<typeof topupSchema>;
-
-interface WalletData {
-  balance: number;
-  user: {
-    full_name: string;
-    email: string;
-  };
-}
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Wallet,
+  ArrowUpRight,
+  CreditCard,
+  TrendingUp,
+  AlertCircle,
+  RefreshCw,
+} from 'lucide-react';
+import { WithdrawForm } from '@/components/WithdrawForm';
+import { WithdrawalList } from '@/components/WithdrawalList';
+import { BalanceHistory } from '@/components/BalanceHistory';
 
 interface Transaction {
   id: string;
   transaction_type: string;
   amount: number;
-  balance_after: number;
-  description: string;
+  description: string | null;
   created_at: string;
+}
+
+interface WalletData {
+  balance: number;
+  transactions: Transaction[];
 }
 
 export default function WalletPage() {
   const [walletData, setWalletData] = useState<WalletData | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [topupLoading, setTopupLoading] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<TopupFormData>({
-    resolver: zodResolver(topupSchema),
-  });
-
-  // Fetch wallet data
-  useEffect(() => {
-    fetchWalletData();
-    fetchTransactions();
-  }, []);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const fetchWalletData = async () => {
     try {
@@ -75,53 +47,48 @@ export default function WalletPage() {
       if (response.ok) {
         const data = await response.json();
         setWalletData(data);
+      } else {
+        setError('Không thể tải thông tin ví');
       }
-    } catch (error) {
-      console.error('Error fetching wallet data:', error);
+    } catch {
+      setError('Có lỗi xảy ra khi tải dữ liệu');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchTransactions = async () => {
-    try {
-      const response = await fetch('/api/wallet/transactions');
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data);
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-    }
-  };
+  useEffect(() => {
+    fetchWalletData();
+  }, []);
 
-  const onSubmitTopup = async (data: TopupFormData) => {
-    setTopupLoading(true);
+  const handleWithdraw = async (withdrawData: {
+    amount: number;
+    paymentMethod: string;
+    accountNumber: string;
+    accountName: string;
+    bankName?: string;
+    note?: string;
+  }) => {
     try {
-      const response = await fetch('/api/topup/init', {
+      const response = await fetch('/api/payouts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(withdrawData),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        // Redirect to payment or show payment link
-        if (result.paymentUrl) {
-          window.open(result.paymentUrl, '_blank');
-        }
-        reset();
-      } else {
-        const error = await response.json();
-        alert(`Lỗi: ${error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || 'Có lỗi xảy ra khi tạo yêu cầu rút tiền'
+        );
       }
-    } catch (error) {
-      console.error('Error initiating topup:', error);
-      alert('Có lỗi xảy ra khi tạo giao dịch nạp tiền');
-    } finally {
-      setTopupLoading(false);
+
+      // Refresh wallet data after successful withdrawal request
+      await fetchWalletData();
+    } catch (err) {
+      throw err;
     }
   };
 
@@ -132,40 +99,12 @@ export default function WalletPage() {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('vi-VN');
-  };
-
-  const getTransactionTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      topup: 'Nạp tiền',
-      join_match: 'Tham gia trận đấu',
-      leave_match: 'Rời trận đấu',
-      win_prize: 'Thắng giải',
-      service_fee: 'Phí dịch vụ',
-      withdraw: 'Rút tiền',
-    };
-    return labels[type] || type;
-  };
-
-  const getTransactionTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      topup: 'bg-green-100 text-green-800',
-      join_match: 'bg-blue-100 text-blue-800',
-      leave_match: 'bg-yellow-100 text-yellow-800',
-      win_prize: 'bg-purple-100 text-purple-800',
-      service_fee: 'bg-red-100 text-red-800',
-      withdraw: 'bg-orange-100 text-orange-800',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-800';
-  };
-
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p>Đang tải thông tin ví...</p>
           </div>
         </div>
@@ -173,72 +112,120 @@ export default function WalletPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!walletData) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Không tìm thấy thông tin ví</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Ví Tạm Ứng Dịch Vụ</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <Wallet className="h-8 w-8 text-primary" />
+          <h1 className="text-3xl font-bold">Ví của tôi</h1>
+        </div>
         <p className="text-muted-foreground">
-          Quản lý số dư và giao dịch của bạn
+          Quản lý số dư và các giao dịch của bạn
         </p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
-            Tổng quan
-          </TabsTrigger>
-          <TabsTrigger value="topup" className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nạp tiền
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Lịch sử
-          </TabsTrigger>
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Tổng quan</TabsTrigger>
+          <TabsTrigger value="withdraw">Rút tiền</TabsTrigger>
+          <TabsTrigger value="requests">Yêu cầu rút tiền</TabsTrigger>
+          <TabsTrigger value="history">Lịch sử</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Balance Card */}
+          {/* Balance Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Số dư hiện tại
+              </CardTitle>
+              <CardDescription>Số tiền có sẵn trong ví của bạn</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <div className="text-4xl font-bold text-primary mb-2">
+                  {formatCurrency(walletData.balance)}
+                </div>
+                <p className="text-muted-foreground">Số dư khả dụng</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5" />
-                  Số dư hiện tại
+                  <ArrowUpRight className="h-5 w-5 text-primary" />
+                  Rút tiền
                 </CardTitle>
-                <CardDescription>Số dư tạm ứng dịch vụ của bạn</CardDescription>
+                <CardDescription>
+                  Rút tiền từ ví về tài khoản của bạn
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-primary">
-                  {walletData ? formatCurrency(walletData.balance) : '0 ₫'}
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Yêu cầu rút tiền sẽ được xử lý trong vòng 24-48 giờ
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('withdraw')}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md transition-colors"
+                  >
+                    Tạo yêu cầu rút tiền
+                  </button>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Có thể sử dụng để tham gia các trận đấu
-                </p>
               </CardContent>
             </Card>
 
-            {/* User Info Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Thông tin tài khoản</CardTitle>
-                <CardDescription>Thông tin cá nhân của bạn</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  Nạp tiền
+                </CardTitle>
+                <CardDescription>
+                  Nạp tiền vào ví để tham gia trận đấu
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div>
-                    <Label className="text-sm font-medium">Họ tên</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {walletData?.user.full_name || 'Chưa cập nhật'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Email</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {walletData?.user.email || 'Chưa cập nhật'}
-                    </p>
-                  </div>
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Nạp tiền nhanh chóng và an toàn
+                  </p>
+                  <button
+                    onClick={() => (window.location.href = '/wallet/topup')}
+                    className="w-full bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-md transition-colors"
+                  >
+                    Nạp tiền ngay
+                  </button>
                 </div>
               </CardContent>
             </Card>
@@ -247,205 +234,66 @@ export default function WalletPage() {
           {/* Recent Transactions */}
           <Card>
             <CardHeader>
-              <CardTitle>Giao dịch gần đây</CardTitle>
-              <CardDescription>5 giao dịch mới nhất</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transactions.length > 0 ? (
-                <div className="space-y-4">
-                  {transactions.slice(0, 5).map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={getTransactionTypeColor(
-                            transaction.transaction_type
-                          )}
-                        >
-                          {getTransactionTypeLabel(
-                            transaction.transaction_type
-                          )}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">
-                            {transaction.description}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(transaction.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-medium ${
-                            transaction.amount > 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }`}
-                        >
-                          {transaction.amount > 0 ? '+' : ''}
-                          {formatCurrency(transaction.amount)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Số dư: {formatCurrency(transaction.balance_after)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  Chưa có giao dịch nào
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="topup" className="space-y-6">
-          <Card>
-            <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                Nạp tiền vào ví
+                Giao dịch gần đây
               </CardTitle>
-              <CardDescription>
-                Nạp tiền tạm ứng dịch vụ để tham gia các trận đấu
-              </CardDescription>
+              <CardDescription>5 giao dịch mới nhất của bạn</CardDescription>
             </CardHeader>
             <CardContent>
-              <form
-                onSubmit={handleSubmit(onSubmitTopup)}
-                className="space-y-6"
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Số tiền (VNĐ)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="Nhập số tiền muốn nạp"
-                    {...register('amount', { valueAsNumber: true })}
-                  />
-                  {errors.amount && (
-                    <p className="text-sm text-red-600">
-                      {errors.amount.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Phương thức thanh toán</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="momo"
-                        value="momo"
-                        {...register('paymentMethod')}
-                        className="h-4 w-4"
-                      />
-                      <Label htmlFor="momo">Momo</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="payos"
-                        value="payos"
-                        {...register('paymentMethod')}
-                        className="h-4 w-4"
-                      />
-                      <Label htmlFor="payos">PayOS</Label>
-                    </div>
-                  </div>
-                  {errors.paymentMethod && (
-                    <p className="text-sm text-red-600">
-                      {errors.paymentMethod.message}
-                    </p>
-                  )}
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={topupLoading}
-                >
-                  {topupLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Đang xử lý...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nạp tiền
-                    </>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lịch sử giao dịch</CardTitle>
-              <CardDescription>Tất cả giao dịch của bạn</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transactions.length > 0 ? (
-                <div className="space-y-4">
-                  {transactions.map((transaction) => (
+              {walletData.transactions && walletData.transactions.length > 0 ? (
+                <div className="space-y-3">
+                  {walletData.transactions.slice(0, 5).map((transaction) => (
                     <div
                       key={transaction.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex items-center justify-between p-3 border rounded-lg"
                     >
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={getTransactionTypeColor(
-                            transaction.transaction_type
-                          )}
-                        >
-                          {getTransactionTypeLabel(
-                            transaction.transaction_type
-                          )}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">
-                            {transaction.description}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(transaction.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-medium ${
-                            transaction.amount > 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }`}
-                        >
-                          {transaction.amount > 0 ? '+' : ''}
-                          {formatCurrency(transaction.amount)}
+                      <div>
+                        <p className="font-semibold">
+                          {transaction.description}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Số dư: {formatCurrency(transaction.balance_after)}
+                          {new Date(transaction.created_at).toLocaleString(
+                            'vi-VN'
+                          )}
                         </p>
+                      </div>
+                      <div
+                        className={`font-semibold ${
+                          transaction.amount > 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
+                      >
+                        {transaction.amount > 0 ? '+' : ''}
+                        {formatCurrency(transaction.amount)}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  Chưa có giao dịch nào
-                </p>
+                <div className="text-center py-8">
+                  <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Chưa có giao dịch nào</p>
+                </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="withdraw">
+          <WithdrawForm
+            currentBalance={walletData.balance}
+            onWithdraw={handleWithdraw}
+          />
+        </TabsContent>
+
+        <TabsContent value="requests">
+          <WithdrawalList />
+        </TabsContent>
+
+        <TabsContent value="history">
+          <BalanceHistory />
         </TabsContent>
       </Tabs>
     </div>

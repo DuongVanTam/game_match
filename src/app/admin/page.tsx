@@ -17,8 +17,8 @@ import {
   Users,
   Gamepad2,
   Trophy,
-  AlertTriangle,
   DollarSign,
+  CreditCard,
 } from 'lucide-react';
 
 interface Match {
@@ -156,12 +156,16 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
           <TabsTrigger value="matches">Trận đấu</TabsTrigger>
           <TabsTrigger value="users">Người dùng</TabsTrigger>
-          <TabsTrigger value="moderation">Kiểm duyệt</TabsTrigger>
+          <TabsTrigger value="payouts">Rút tiền</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -170,7 +174,9 @@ export default function AdminDashboard() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Tổng người dùng</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Tổng người dùng
+                  </CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -183,7 +189,9 @@ export default function AdminDashboard() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Tổng trận đấu</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Tổng trận đấu
+                  </CardTitle>
                   <Gamepad2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -196,24 +204,35 @@ export default function AdminDashboard() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Trận đã hoàn thành</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Trận đã hoàn thành
+                  </CardTitle>
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.completedMatches}</div>
+                  <div className="text-2xl font-bold">
+                    {stats.completedMatches}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((stats.completedMatches / stats.totalMatches) * 100)}% tổng số
+                    {Math.round(
+                      (stats.completedMatches / stats.totalMatches) * 100
+                    )}
+                    % tổng số
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Doanh thu</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Doanh thu
+                  </CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(stats.totalRevenue)}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Phí dịch vụ từ trận đấu
                   </p>
@@ -238,7 +257,9 @@ export default function AdminDashboard() {
                       <Avatar>
                         <AvatarImage src={match.created_by_user.avatar_url} />
                         <AvatarFallback>
-                          {match.created_by_user.full_name.charAt(0).toUpperCase()}
+                          {match.created_by_user.full_name
+                            .charAt(0)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
@@ -274,12 +295,16 @@ export default function AdminDashboard() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{user.full_name}</p>
+                        <p className="font-semibold truncate">
+                          {user.full_name}
+                        </p>
                         <p className="text-sm text-muted-foreground">
                           {user.email}
                         </p>
                       </div>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
+                      <Badge
+                        variant={user.role === 'admin' ? 'default' : 'outline'}
+                      >
                         {user.role === 'admin' ? 'Admin' : 'User'}
                       </Badge>
                     </div>
@@ -310,8 +335,13 @@ export default function AdminDashboard() {
                         </p>
                         <div className="flex items-center gap-4 text-sm">
                           <span>Phí: {formatCurrency(match.entry_fee)}</span>
-                          <span>Người chơi: {match.current_players}/{match.max_players}</span>
-                          <span>Tạo bởi: {match.created_by_user.full_name}</span>
+                          <span>
+                            Người chơi: {match.current_players}/
+                            {match.max_players}
+                          </span>
+                          <span>
+                            Tạo bởi: {match.created_by_user.full_name}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -352,11 +382,17 @@ export default function AdminDashboard() {
                         </Avatar>
                         <div>
                           <p className="font-semibold">{user.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {user.email}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
+                        <Badge
+                          variant={
+                            user.role === 'admin' ? 'default' : 'outline'
+                          }
+                        >
                           {user.role === 'admin' ? 'Admin' : 'User'}
                         </Badge>
                         <span className="text-sm text-muted-foreground">
@@ -371,23 +407,29 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="moderation" className="space-y-6">
+        <TabsContent value="payouts" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                Kiểm duyệt và giải quyết tranh chấp
+                <CreditCard className="h-5 w-5 text-primary" />
+                Quản lý rút tiền
               </CardTitle>
               <CardDescription>
-                Xem và xử lý các trường hợp cần kiểm duyệt
+                Duyệt và xử lý các yêu cầu rút tiền của người dùng
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-8">
-                <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  Chưa có trường hợp nào cần kiểm duyệt
+                <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  Quản lý tất cả các yêu cầu rút tiền
                 </p>
+                <Button
+                  onClick={() => (window.location.href = '/admin/payouts')}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Mở trang quản lý rút tiền
+                </Button>
               </div>
             </CardContent>
           </Card>
