@@ -39,7 +39,7 @@ const withdrawSchema = z.object({
     .min(10000, 'Số tiền tối thiểu là 10,000 VND')
     .max(10000000, 'Số tiền tối đa là 10,000,000 VND'),
   paymentMethod: z.enum(['momo', 'bank_transfer', 'vietqr'], {
-    required_error: 'Vui lòng chọn phương thức thanh toán',
+    message: 'Vui lòng chọn phương thức thanh toán',
   }),
   accountNumber: z
     .string()
