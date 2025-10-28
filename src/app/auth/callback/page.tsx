@@ -33,40 +33,18 @@ export default function AuthCallbackPage() {
         }
 
         if (data.session) {
-          // Check if user exists in our users table
-          const { data: existingUser } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single();
+          // Initialize user via API endpoint (creates user + wallet if needed)
+          const initResponse = await fetch('/api/auth/initialize-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
 
-          // If user doesn't exist, create user record
-          if (!existingUser) {
-            const { error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: data.session.user.id,
-                email: data.session.user.email!,
-                full_name: data.session.user.user_metadata?.full_name || null,
-                role: 'user',
-                email_verified: data.session.user.email_confirmed_at ? true : false,
-              });
-
-            if (insertError) {
-              console.error('Error creating user:', insertError);
-            }
-
-            // Create wallet for new user
-            const { error: walletError } = await supabase
-              .from('wallets')
-              .insert({
-                user_id: data.session.user.id,
-                balance: 0,
-              });
-
-            if (walletError) {
-              console.error('Error creating wallet:', walletError);
-            }
+          if (!initResponse.ok) {
+            console.error('Failed to initialize user');
+            setError('Failed to initialize user account');
+            return;
           }
 
           // User authenticated successfully, redirect to home
@@ -74,7 +52,8 @@ export default function AuthCallbackPage() {
         } else {
           setError('No session found');
         }
-      } catch {
+      } catch (err) {
+        console.error('Error in auth callback:', err);
         setError('An unexpected error occurred');
       } finally {
         setLoading(false);
