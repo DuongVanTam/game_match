@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase-server';
 import { getCurrentUser } from '@/lib/auth-server';
 import { z } from 'zod';
 
@@ -29,7 +29,8 @@ export async function POST(
     // Get match details
     const { data: match, error: matchError } = await client
       .from('matches')
-      .select(`
+      .select(
+        `
         *,
         match_players(
           id,
@@ -37,7 +38,8 @@ export async function POST(
           status,
           user:users(id, full_name)
         )
-      `)
+      `
+      )
       .eq('id', matchId)
       .single();
 
@@ -71,7 +73,7 @@ export async function POST(
     const activePlayers = match.match_players.filter(
       (player: { status: string | null }) => player.status === 'active'
     );
-    
+
     const winnerPlayer = activePlayers.find(
       (player: { user_id: string }) => player.user_id === winnerId
     );
@@ -142,24 +144,22 @@ export async function POST(
     }
 
     // Add ledger entry for prize
-    const { error: prizeLedgerError } = await client
-      .from('ledger')
-      .insert({
-        user_id: winnerId,
-        transaction_type: 'win_prize',
-        amount: prizeAmount,
-        balance_after: winnerWallet.balance + prizeAmount,
-        reference_id: matchId,
-        reference_type: 'match',
-        description: `Giải thưởng từ trận đấu: ${match.title}`,
-        metadata: {
-          match_id: matchId,
-          match_title: match.title,
-          prize_amount: prizeAmount,
-          service_fee: serviceFee,
-          total_pool: prizeAmount + serviceFee,
-        },
-      });
+    const { error: prizeLedgerError } = await client.from('ledger').insert({
+      user_id: winnerId,
+      transaction_type: 'win_prize',
+      amount: prizeAmount,
+      balance_after: winnerWallet.balance + prizeAmount,
+      reference_id: matchId,
+      reference_type: 'match',
+      description: `Giải thưởng từ trận đấu: ${match.title}`,
+      metadata: {
+        match_id: matchId,
+        match_title: match.title,
+        prize_amount: prizeAmount,
+        service_fee: serviceFee,
+        total_pool: prizeAmount + serviceFee,
+      },
+    });
 
     if (prizeLedgerError) {
       console.error('Prize ledger error:', prizeLedgerError);
@@ -200,10 +200,12 @@ export async function POST(
     // Get updated match data
     const { data: updatedMatch } = await client
       .from('matches')
-      .select(`
+      .select(
+        `
         *,
         winner_user:users!matches_winner_id_fkey(full_name, avatar_url)
-      `)
+      `
+      )
       .eq('id', matchId)
       .single();
 
@@ -219,7 +221,7 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error in POST /api/matches/[id]/settle:', error);
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid request data', details: error.issues },

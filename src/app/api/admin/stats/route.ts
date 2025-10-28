@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase-server';
 import { getCurrentUser } from '@/lib/auth-server';
 
 export async function GET() {
@@ -33,15 +33,27 @@ export async function GET() {
     ] = await Promise.all([
       client.from('users').select('id', { count: 'exact' }),
       client.from('matches').select('id', { count: 'exact' }),
-      client.from('matches').select('id', { count: 'exact' }).eq('status', 'completed'),
-      client.from('matches').select('id', { count: 'exact' }).eq('status', 'ongoing'),
+      client
+        .from('matches')
+        .select('id', { count: 'exact' })
+        .eq('status', 'completed'),
+      client
+        .from('matches')
+        .select('id', { count: 'exact' })
+        .eq('status', 'ongoing'),
       client
         .from('ledger')
         .select('amount')
         .eq('transaction_type', 'service_fee'),
     ]);
 
-    if (usersError || matchesError || completedError || activeError || revenueError) {
+    if (
+      usersError ||
+      matchesError ||
+      completedError ||
+      activeError ||
+      revenueError
+    ) {
       console.error('Error fetching stats:', {
         usersError,
         matchesError,
@@ -55,7 +67,8 @@ export async function GET() {
       );
     }
 
-    const totalRevenue = revenue?.reduce((sum, item) => sum + item.amount, 0) || 0;
+    const totalRevenue =
+      revenue?.reduce((sum, item) => sum + item.amount, 0) || 0;
 
     const stats = {
       totalUsers: users?.length || 0,

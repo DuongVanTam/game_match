@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAuthServerClient, createServerClient } from '@/lib/supabase';
+import {
+  createAuthServerClient,
+  createServerClient,
+} from '@/lib/supabase-server';
 
 /**
  * Initialize a new user after authentication

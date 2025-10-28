@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase-server';
 import { getCurrentUser } from '@/lib/auth-server';
 
 export async function GET() {
@@ -26,7 +26,8 @@ export async function GET() {
     // Get recent matches
     const { data: matches, error } = await client
       .from('matches')
-      .select(`
+      .select(
+        `
         *,
         created_by_user:users!matches_created_by_fkey(full_name, avatar_url),
         winner_user:users!matches_winner_id_fkey(full_name, avatar_url),
@@ -36,7 +37,8 @@ export async function GET() {
           status,
           user:users(full_name, avatar_url)
         )
-      `)
+      `
+      )
       .order('created_at', { ascending: false })
       .limit(50);
 
