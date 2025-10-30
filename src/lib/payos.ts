@@ -1,3 +1,4 @@
+import { createHmac } from 'crypto';
 // PayOS configuration
 const payosClientId = process.env.PAYOS_CLIENT_ID;
 const payosApiKey = process.env.PAYOS_API_KEY;
@@ -68,14 +69,23 @@ export class PayOSService {
           'x-client-id': payosClientId as string,
           'x-api-key': payosApiKey as string,
         },
-        body: JSON.stringify({
-          orderCode: data.orderCode,
-          amount: data.amount,
-          description: data.description,
-          items: data.items,
-          returnUrl: data.returnUrl,
-          cancelUrl: data.cancelUrl,
-        }),
+        body: (() => {
+          // Build canonical string sorted alphabetically as required by PayOS
+          const canonical = `amount=${data.amount}&cancelUrl=${data.cancelUrl}&description=${data.description}&orderCode=${data.orderCode}&returnUrl=${data.returnUrl}`;
+          const signature = createHmac('sha256', payosChecksumKey as string)
+            .update(canonical)
+            .digest('hex');
+
+          return JSON.stringify({
+            orderCode: data.orderCode,
+            amount: data.amount,
+            description: data.description,
+            items: data.items,
+            returnUrl: data.returnUrl,
+            cancelUrl: data.cancelUrl,
+            signature,
+          });
+        })(),
       });
 
       if (!resp.ok) {
@@ -84,6 +94,7 @@ export class PayOSService {
           `PayOS createPaymentLink failed: ${resp.status} ${errorText}`
         );
       }
+      console.log('resp', resp);
 
       const json = await resp.json();
       // Normalize expected shape
