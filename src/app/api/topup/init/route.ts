@@ -75,12 +75,15 @@ export async function POST(request: NextRequest) {
       paymentUrl = `https://momo.vn/payment?amount=${amount}&tx_ref=${txRef}`;
     } else if (paymentMethod === 'payos') {
       // Use PayOS service if available
+      console.log('abc', payosService.isAvailable());
+
       if (payosService.isAvailable()) {
         try {
           const orderCode =
             parseInt(txRef.replace(/\D/g, '').slice(-8)) ||
             Date.now() % 100000000;
 
+          const baseUrl = 'https://game-match.net';
           const paymentLinkData = {
             orderCode,
             amount,
@@ -92,12 +95,13 @@ export async function POST(request: NextRequest) {
                 price: amount,
               },
             ],
-            returnUrl: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/wallet?success=true&tx_ref=${txRef}`,
-            cancelUrl: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/wallet?cancelled=true&tx_ref=${txRef}`,
+            returnUrl: `${baseUrl}/wallet?success=true&tx_ref=${txRef}`,
+            cancelUrl: `${baseUrl}/wallet?cancelled=true&tx_ref=${txRef}`,
           };
 
           const paymentLink =
             await payosService.createPaymentLink(paymentLinkData);
+          console.log('paymentLink', paymentLink);
           paymentUrl = paymentLink.checkoutUrl;
         } catch (error) {
           console.error('Error creating PayOS payment link:', error);
