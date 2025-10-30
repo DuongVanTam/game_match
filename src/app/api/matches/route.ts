@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createAuthServerClient } from '@/lib/supabase-server';
 import { z } from 'zod';
 
 // Validation schema
@@ -24,7 +24,17 @@ const createMatchSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const client = createServerClient();
+    const client = await createAuthServerClient();
+
+    // Check authentication
+    const {
+      data: { user },
+      error: authError,
+    } = await client.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -85,7 +95,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const client = createServerClient();
+    const client = await createAuthServerClient();
 
     // Get current user from auth
     const {

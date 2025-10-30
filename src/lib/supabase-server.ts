@@ -45,3 +45,24 @@ export const createAuthServerClient = async () => {
     },
   });
 };
+
+// API route specific client that reads cookies from request headers
+export const createApiAuthClient = (request: Request) => {
+  return createSSRServerClient<Database>(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        // Parse cookies from request headers
+        const cookieHeader = request.headers.get('cookie');
+        if (!cookieHeader) return [];
+
+        return cookieHeader.split(';').map((cookie) => {
+          const [name, value] = cookie.trim().split('=');
+          return { name, value };
+        });
+      },
+      setAll() {
+        // No-op for API routes
+      },
+    },
+  });
+};

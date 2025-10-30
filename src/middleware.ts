@@ -9,7 +9,9 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT = {
   windowMs: 15 * 60 * 1000, // 15 minutes
   maxRequests: 100, // 100 requests per window
-  apiMaxRequests: 50, // 50 API requests per window
+  apiMaxRequests: 200, // 200 API requests per window (increased for read operations)
+  readApiMaxRequests: 500, // 500 requests for read-only endpoints
+  writeApiMaxRequests: 50, // 50 requests for write operations
 };
 
 function getRateLimitKey(request: NextRequest): string {
@@ -53,9 +55,49 @@ export async function middleware(request: NextRequest) {
 
   const key = getRateLimitKey(request);
   const isApiRoute = pathname.startsWith('/api/');
-  const maxRequests = isApiRoute
-    ? RATE_LIMIT.apiMaxRequests
-    : RATE_LIMIT.maxRequests;
+
+  // Determine rate limit based on endpoint type
+  let maxRequests = RATE_LIMIT.maxRequests;
+
+  if (isApiRoute) {
+    // Read-only endpoints (GET requests to data endpoints)
+    const isReadOnlyEndpoint =
+      request.method === 'GET' &&
+      (pathname.startsWith('/api/matches') ||
+        pathname.startsWith('/api/wallet/balance') ||
+        pathname.startsWith('/api/wallet/transactions') ||
+        (pathname.startsWith('/api/payouts') && !pathname.includes('/status')));
+
+    // Write endpoints (POST, PUT, DELETE, or sensitive operations)
+    const isWriteEndpoint =
+      request.method !== 'GET' ||
+      pathname.startsWith('/api/topup') ||
+      (pathname.startsWith('/api/matches') &&
+        (pathname.includes('/join') ||
+          pathname.includes('/leave') ||
+          pathname.includes('/settle'))) ||
+      (pathname.startsWith('/api/payouts') && pathname.includes('/status'));
+
+    if (isReadOnlyEndpoint) {
+      maxRequests = RATE_LIMIT.readApiMaxRequests;
+    } else if (isWriteEndpoint) {
+      maxRequests = RATE_LIMIT.writeApiMaxRequests;
+    } else {
+      maxRequests = RATE_LIMIT.apiMaxRequests;
+    }
+
+    // Relax rate limit for topup init to reduce false 429s during normal use
+    const isTopupInit = pathname.startsWith('/api/topup/init');
+    if (isTopupInit) {
+      // In development, effectively disable rate limit for this endpoint
+      if (process.env.NODE_ENV !== 'production') {
+        maxRequests = Number.MAX_SAFE_INTEGER;
+      } else {
+        // In production, allow higher burst specifically for init
+        maxRequests = Math.max(maxRequests, 200);
+      }
+    }
+  }
 
   if (isRateLimited(key, maxRequests)) {
     return new NextResponse(
@@ -83,7 +125,9 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
         },
       },
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createApiAuthClient, createServerClient } from '@/lib/supabase-server';
 import { z } from 'zod';
 
 // Validation schema
@@ -16,13 +16,13 @@ const topupConfirmSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const client = createServerClient();
+    const authClient = createApiAuthClient(request);
 
     // Get current user from auth
     const {
       data: { user },
       error: authError,
-    } = await client.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
     const { txRef, paymentData } = validation.data;
 
     // Get the topup record
-    const { data: topup, error: topupError } = await client
+    // Use service role client for DB operations (bypass RLS) with enforced user checks
+    const serviceClient = createServerClient();
+
+    const { data: topup, error: topupError } = await serviceClient
       .from('topups')
       .select('*')
       .eq('tx_ref', txRef)
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update wallet balance using the database function
-    const { data: ledgerId, error: walletError } = await client.rpc(
+    const { data: ledgerId, error: walletError } = await serviceClient.rpc(
       'update_wallet_balance',
       {
         p_user_id: user.id,
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update topup status
-    const { error: updateError } = await client
+    const { error: updateError } = await serviceClient
       .from('topups')
       .update({
         status: 'confirmed',

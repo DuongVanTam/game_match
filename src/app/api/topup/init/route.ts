@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createApiAuthClient, createServerClient } from '@/lib/supabase-server';
 import { payosService } from '@/lib/payos';
 import { z } from 'zod';
 
@@ -14,13 +14,13 @@ const topupInitSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const client = createServerClient();
+    const authClient = createApiAuthClient(request);
 
     // Get current user from auth
     const {
       data: { user },
       error: authError,
-    } = await client.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
     const txRef = `TFT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Create topup record
-    const { data: topup, error: topupError } = await client
+    // Use service role client for DB writes (bypass RLS) with server-side checks
+    const serviceClient = createServerClient();
+
+    const { data: topup, error: topupError } = await serviceClient
       .from('topups')
       .insert({
         user_id: user.id,
