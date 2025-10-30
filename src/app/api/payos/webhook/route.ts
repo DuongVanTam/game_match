@@ -18,8 +18,43 @@ export async function POST(request: NextRequest) {
 
     const { orderCode, status, description } = body;
 
-    // Only process successful payments
+    // Handle non-success statuses: mark failed/canceled/expired if provided
     if (status !== 'PAID') {
+      const client = createServerClient();
+
+      const { description } = body || {};
+      const txRefMatch =
+        typeof description === 'string'
+          ? description.match(/TFT_\d+_[a-zA-Z0-9]+/)
+          : null;
+      const txRef = txRefMatch ? txRefMatch[0] : null;
+
+      if (txRef) {
+        const { data: topup } = await client
+          .from('topups')
+          .select('id,status')
+          .eq('tx_ref', txRef)
+          .single();
+
+        if (topup && topup.status !== 'confirmed') {
+          const failingStatuses = [
+            'CANCELED',
+            'CANCELLED',
+            'EXPIRED',
+            'FAILED',
+          ];
+          if (failingStatuses.includes(String(status).toUpperCase())) {
+            await client
+              .from('topups')
+              .update({
+                status: 'failed',
+                payment_data: { webhook_data: body },
+              })
+              .eq('id', topup.id);
+          }
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Payment not completed',

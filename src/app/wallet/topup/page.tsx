@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -41,6 +41,9 @@ export default function WalletTopupPage() {
   const [txRef, setTxRef] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
+  const [status, setStatus] = useState<
+    'pending' | 'confirmed' | 'failed' | null
+  >(null);
 
   const formatCurrency = (v: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -81,29 +84,55 @@ export default function WalletTopupPage() {
     }
   };
 
-  const handleConfirmPayment = async () => {
+  // Poll topup status after init
+  useEffect(() => {
     if (!txRef) return;
-    setConfirmError(null);
-    setLoading(true);
-    try {
-      const res = await fetch('/api/topup/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txRef }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Xác nhận nạp tiền thất bại');
+    setStatus('pending');
+    let cancelled = false;
+    const start = Date.now();
+
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/topup/status?tx_ref=${encodeURIComponent(txRef)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'confirmed') {
+            if (!cancelled) {
+              setStatus('confirmed');
+              setSuccessMessage(
+                'Thanh toán thành công! Số dư sẽ được cập nhật.'
+              );
+              setTimeout(() => router.push('/wallet'), 1000);
+            }
+            return;
+          }
+          if (data.status === 'failed') {
+            if (!cancelled) {
+              setStatus('failed');
+              setConfirmError(
+                'Thanh toán thất bại hoặc đã hủy. Vui lòng thử lại.'
+              );
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore intermittent errors
       }
-      setSuccessMessage('Nạp tiền thành công! Số dư đã được cập nhật.');
-      // Điều hướng về trang ví sau một chút
-      setTimeout(() => router.push('/wallet'), 1000);
-    } catch (err: unknown) {
-      setConfirmError(err instanceof Error ? err.message : 'Có lỗi xảy ra');
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      if (!cancelled && Date.now() - start < 3 * 60 * 1000) {
+        setTimeout(poll, 3000);
+      }
+    };
+
+    const t = setTimeout(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [txRef, router]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -209,17 +238,15 @@ export default function WalletTopupPage() {
                   Mở trang thanh toán
                 </Button>
                 <p className="text-sm text-muted-foreground">
-                  Sau khi thanh toán xong, bấm &quot;Xác nhận đã thanh
-                  toán&quot; để cộng số dư.
+                  Hoàn tất thanh toán trên trang PayOS. Hệ thống sẽ tự động cập
+                  nhật trạng thái.
                 </p>
-                <Button
-                  onClick={handleConfirmPayment}
-                  disabled={loading}
-                  className="gap-2"
-                >
-                  {loading && <RefreshCw className="h-4 w-4 animate-spin" />}
-                  Xác nhận đã thanh toán
-                </Button>
+                {status === 'pending' && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin" /> Đang chờ xác
+                    nhận thanh toán...
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
