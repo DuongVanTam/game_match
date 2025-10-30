@@ -4,7 +4,7 @@ const payosClientId = process.env.PAYOS_CLIENT_ID;
 const payosApiKey = process.env.PAYOS_API_KEY;
 const payosChecksumKey = process.env.PAYOS_CHECKSUM_KEY;
 
-const PAYOS_API_BASE = 'https://api.payos.vn';
+const PAYOS_API_BASE = 'https://api-merchant.payos.vn';
 
 // Simple PayOS service without external dependency for now
 // In production, you would use the actual PayOS SDK
