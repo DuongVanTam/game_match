@@ -1,35 +1,6 @@
-import * as PayOSModule from '@payos/node';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PayOS = require('@payos/node');
 import { createHmac } from 'crypto';
-type PayOSCtor = new (
-  clientId: string,
-  apiKey: string,
-  checksumKey: string
-) => {
-  createPaymentLink(params: {
-    orderCode: number;
-    amount: number;
-    description: string;
-    items: Array<{ name: string; quantity: number; price: number }>;
-    returnUrl: string;
-    cancelUrl: string;
-    signature?: string;
-  }): Promise<unknown>;
-  getPaymentLinkInformation(orderCode: number): Promise<unknown>;
-  cancelPaymentLink(orderCode: number, reason: string): Promise<unknown>;
-};
-
-function resolvePayOS(mod: unknown): PayOSCtor {
-  if (
-    mod &&
-    typeof mod === 'object' &&
-    'default' in (mod as Record<string, unknown>)
-  ) {
-    return (mod as Record<string, unknown>).default as PayOSCtor;
-  }
-  return mod as PayOSCtor;
-}
-
-const PayOS = resolvePayOS(PayOSModule);
 // PayOS configuration
 const payosClientId = process.env.PAYOS_CLIENT_ID;
 const payosApiKey = process.env.PAYOS_API_KEY;
@@ -126,6 +97,8 @@ export class PayOSService {
         cancelUrl: data.cancelUrl,
         signature,
       })) as SdkPaymentLink;
+      console.log('payload', payload);
+
       const result: PaymentLinkResponse = {
         bin: payload.bin || '',
         accountNumber: payload.accountNumber || '',
