@@ -71,16 +71,25 @@ export class PayOSService {
         },
         body: (() => {
           // Normalize values exactly as sent in JSON
-          const normalized = {
-            orderCode: Number(data.orderCode),
+          const normalized: Record<
+            'amount' | 'cancelUrl' | 'description' | 'orderCode' | 'returnUrl',
+            string | number
+          > = {
             amount: Number(data.amount),
-            description: String(data.description ?? ''),
-            returnUrl: String(data.returnUrl ?? '').trim(),
             cancelUrl: String(data.cancelUrl ?? '').trim(),
+            description: String(data.description ?? ''),
+            orderCode: Number(data.orderCode),
+            returnUrl: String(data.returnUrl ?? '').trim(),
           };
 
-          // PayOS signature order: amount, orderCode, description, returnUrl, cancelUrl
-          const canonical = `amount=${normalized.amount}&cancelUrl=${normalized.cancelUrl}&description=${normalized.description}&orderCode=${normalized.orderCode}&returnUrl=${normalized.returnUrl}`;
+          const canonical = Object.keys(normalized)
+            .sort()
+            .map(
+              (k) =>
+                `${k}=${encodeURIComponent(String(normalized[k as keyof typeof normalized] ?? ''))}`
+            )
+            .join('&');
+
           const signature = createHmac('sha256', payosChecksumKey as string)
             .update(canonical)
             .digest('hex');
