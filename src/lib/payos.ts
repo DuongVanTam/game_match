@@ -43,7 +43,6 @@ export class PayOSService {
         clientId: payosClientId as string,
         apiKey: payosApiKey as string,
         checksumKey: payosChecksumKey as string,
-        logLevel: 'debug',
       });
     }
   }
