@@ -4,7 +4,8 @@ import { payosService } from '@/lib/payos';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Get raw body as text for signature verification
+    const rawBody = await request.text();
     const signature = request.headers.get('x-payos-signature');
 
     if (!signature) {
@@ -12,9 +13,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify webhook signature
-    if (!payosService.verifyWebhookData(body)) {
+    if (!payosService.verifyWebhookSignature(rawBody, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
+
+    // Parse body after signature verification
+    const body = JSON.parse(rawBody);
 
     const { orderCode, status, description } = body;
 

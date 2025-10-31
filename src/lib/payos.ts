@@ -1,13 +1,10 @@
+import { PayOS } from '@payos/node';
 import { createHmac } from 'crypto';
+
 // PayOS configuration
 const payosClientId = process.env.PAYOS_CLIENT_ID;
 const payosApiKey = process.env.PAYOS_API_KEY;
 const payosChecksumKey = process.env.PAYOS_CHECKSUM_KEY;
-
-const PAYOS_API_BASE = 'https://api-merchant.payos.vn';
-
-// Simple PayOS service without external dependency for now
-// In production, you would use the actual PayOS SDK
 
 export interface PaymentLinkData {
   orderCode: number;
@@ -38,8 +35,17 @@ export interface PaymentLinkResponse {
 
 export class PayOSService {
   private static instance: PayOSService;
+  private payOS: PayOS | null = null;
 
-  private constructor() {}
+  private constructor() {
+    if (this.isAvailable()) {
+      this.payOS = new PayOS({
+        clientId: payosClientId as string,
+        apiKey: payosApiKey as string,
+        checksumKey: payosChecksumKey as string,
+      });
+    }
+  }
 
   public static getInstance(): PayOSService {
     if (!PayOSService.instance) {
@@ -55,111 +61,91 @@ export class PayOSService {
   public async createPaymentLink(
     data: PaymentLinkData
   ): Promise<PaymentLinkResponse> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !this.payOS) {
       throw new Error(
         'PayOS client not initialized. Please check environment variables.'
       );
     }
 
     try {
-      const resp = await fetch(`${PAYOS_API_BASE}/v2/payment-requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-client-id': payosClientId as string,
-          'x-api-key': payosApiKey as string,
-        },
-        body: (() => {
-          // Normalize values exactly as sent in JSON
-          const normalized: Record<
-            'amount' | 'cancelUrl' | 'description' | 'orderCode' | 'returnUrl',
-            string | number
-          > = {
-            amount: Number(data.amount),
-            cancelUrl: String(data.cancelUrl ?? ''),
-            description: String(data.description ?? ''),
-            orderCode: Number(data.orderCode),
-            returnUrl: String(data.returnUrl ?? ''),
-          };
-
-          const canonical = `amount=${data.amount}&cancelUrl=${data.cancelUrl}&description=${data.description}&orderCode=${data.orderCode}&returnUrl=${data.returnUrl}`;
-          console.log('canonical', canonical);
-
-          const signature = createHmac('sha256', payosChecksumKey as string)
-            .update(canonical)
-            .digest('hex');
-
-          const payload = {
-            ...normalized,
-            items: data.items,
-            signature,
-          } as const;
-
-          return JSON.stringify(payload);
-        })(),
+      const paymentLink = await this.payOS.paymentRequests.create({
+        orderCode: data.orderCode,
+        amount: data.amount,
+        description: data.description,
+        items: data.items,
+        returnUrl: data.returnUrl,
+        cancelUrl: data.cancelUrl,
       });
 
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        throw new Error(
-          `PayOS createPaymentLink failed: ${resp.status} ${errorText}`
-        );
-      }
-
-      const json = await resp.json();
-      console.log('json', json);
-      // Normalize expected shape
-      const payload = json?.data || json;
+      // Map PayOS SDK response to our PaymentLinkResponse interface
+      // Handle different possible response structures
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const paymentLinkData = paymentLink as any;
       const result: PaymentLinkResponse = {
-        bin: payload.bin || '',
-        accountNumber: payload.accountNumber || '',
-        accountName: payload.accountName || '',
-        amount: payload.amount,
-        description: payload.description,
-        orderCode: payload.orderCode,
-        currency: payload.currency || 'VND',
-        paymentLinkId: payload.paymentLinkId || payload.id || '',
-        status: payload.status || 'PENDING',
-        checkoutUrl: payload.checkoutUrl,
-        qrCode: payload.qrCode,
+        bin: paymentLinkData.bin || '',
+        accountNumber: paymentLinkData.accountNumber || '',
+        accountName: paymentLinkData.accountName || '',
+        amount: paymentLinkData.amount || data.amount,
+        description: paymentLinkData.description || data.description,
+        orderCode: paymentLinkData.orderCode || data.orderCode,
+        currency: paymentLinkData.currency || 'VND',
+        paymentLinkId:
+          paymentLinkData.paymentLinkId ||
+          paymentLinkData.id ||
+          String(data.orderCode),
+        status: paymentLinkData.status || 'PENDING',
+        checkoutUrl: paymentLinkData.checkoutUrl || '',
+        qrCode: paymentLinkData.qrCode || '',
       };
 
       return result;
     } catch (error) {
       console.error('Error creating PayOS payment link:', error);
-      throw new Error('Failed to create payment link');
+      throw new Error(
+        `Failed to create payment link: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   public async getPaymentLinkInfo(
     orderCode: number
   ): Promise<PaymentLinkResponse> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !this.payOS) {
       throw new Error(
         'PayOS client not initialized. Please check environment variables.'
       );
     }
 
     try {
-      // Mock implementation
-      const mockResponse: PaymentLinkResponse = {
-        bin: '970407',
-        accountNumber: '1234567890',
-        accountName: 'TFT Match Platform',
-        amount: 0,
-        description: 'Payment link info',
-        orderCode,
-        currency: 'VND',
-        paymentLinkId: `payos_${orderCode}`,
-        status: 'PENDING',
-        checkoutUrl: `https://payos.vn/checkout/${orderCode}`,
-        qrCode: `https://payos.vn/qr/${orderCode}`,
+      const paymentInfo = await this.payOS.paymentRequests.get(orderCode);
+
+      // Map PayOS SDK response to our PaymentLinkResponse interface
+      // Handle different possible response structures
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const paymentInfoData = paymentInfo as any;
+      const result: PaymentLinkResponse = {
+        bin: paymentInfoData.bin || '',
+        accountNumber: paymentInfoData.accountNumber || '',
+        accountName: paymentInfoData.accountName || '',
+        amount: paymentInfoData.amount || 0,
+        description: paymentInfoData.description || '',
+        orderCode: paymentInfoData.orderCode || orderCode,
+        currency: paymentInfoData.currency || 'VND',
+        paymentLinkId:
+          paymentInfoData.paymentLinkId ||
+          paymentInfoData.id ||
+          String(orderCode),
+        status: paymentInfoData.status || 'PENDING',
+        checkoutUrl: paymentInfoData.checkoutUrl || '',
+        qrCode: paymentInfoData.qrCode || '',
       };
 
-      return mockResponse;
+      return result;
     } catch (error) {
       console.error('Error getting PayOS payment link info:', error);
-      throw new Error('Failed to get payment link information');
+      throw new Error(
+        `Failed to get payment link information: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -167,19 +153,43 @@ export class PayOSService {
     orderCode: number,
     cancellationReason: string
   ): Promise<boolean> {
-    if (!this.isAvailable()) {
+    if (!this.isAvailable() || !this.payOS) {
       throw new Error(
         'PayOS client not initialized. Please check environment variables.'
       );
     }
 
     try {
-      // Mock implementation - in production, you would call the actual PayOS API
-      console.log(`Canceling payment link ${orderCode}: ${cancellationReason}`);
+      // PayOS SDK cancel method signature: cancel(orderCode: number, cancellationReason?: string)
+      await this.payOS.paymentRequests.cancel(orderCode, cancellationReason);
+
       return true;
     } catch (error) {
       console.error('Error canceling PayOS payment link:', error);
-      throw new Error('Failed to cancel payment link');
+      throw new Error(
+        `Failed to cancel payment link: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  public verifyWebhookSignature(
+    webhookBody: string,
+    signature: string
+  ): boolean {
+    if (!this.isAvailable() || !payosChecksumKey) {
+      return false;
+    }
+
+    try {
+      // Verify HMAC-SHA256 signature
+      const calculatedSignature = createHmac('sha256', payosChecksumKey)
+        .update(webhookBody)
+        .digest('hex');
+
+      return calculatedSignature === signature;
+    } catch (error) {
+      console.error('Error verifying PayOS webhook signature:', error);
+      return false;
     }
   }
 
@@ -189,8 +199,7 @@ export class PayOSService {
     }
 
     try {
-      // HMAC-SHA256 of raw body with checksum key, compared against header done in route
-      // Here just ensure payload has expected fields as a sanity check
+      // Basic validation - ensure payload has expected structure
       return typeof webhookData === 'object' && webhookData !== null;
     } catch (error) {
       console.error('Error verifying PayOS webhook data:', error);
