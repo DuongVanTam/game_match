@@ -82,15 +82,8 @@ export class PayOSService {
             returnUrl: String(data.returnUrl ?? ''),
           };
 
-          const canonical = Object.keys(normalized)
-            .sort()
-            .map(
-              (k) =>
-                `${k}=${String(normalized[k as keyof typeof normalized] ?? '')}`
-            )
-            .join('&');
-
-          console.log('payosChecksumKey', payosChecksumKey);
+          const canonical = `amount=${data.amount}&cancelUrl=${data.cancelUrl}&description=${data.description}&orderCode=${data.orderCode}&returnUrl=${data.returnUrl}`;
+          console.log('canonical', canonical);
 
           const signature = createHmac('sha256', payosChecksumKey as string)
             .update(canonical)
