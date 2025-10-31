@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
           const paymentLinkData = {
             orderCode,
             amount,
-            description: `Nạp tiền tạm ứng dịch vụ TFT Match - ${txRef}`,
+            description: `Nạp tiền tạm ứng dịch vụ`,
             items: [
               {
                 name: 'Nạp tiền tạm ứng dịch vụ',

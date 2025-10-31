@@ -43,6 +43,7 @@ export class PayOSService {
         clientId: payosClientId as string,
         apiKey: payosApiKey as string,
         checksumKey: payosChecksumKey as string,
+        logLevel: 'debug',
       });
     }
   }
@@ -66,6 +67,17 @@ export class PayOSService {
         'PayOS client not initialized. Please check environment variables.'
       );
     }
+    console.log('pauload', {
+      orderCode: data.orderCode,
+      amount: data.amount,
+      description: data.description,
+      items: data.items,
+      returnUrl: data.returnUrl,
+      cancelUrl: data.cancelUrl,
+    });
+    console.log('payosClientId', payosClientId);
+    console.log('payosApiKey', payosApiKey);
+    console.log('payosChecksumKey', payosChecksumKey);
 
     try {
       const paymentLink = await this.payOS.paymentRequests.create({
