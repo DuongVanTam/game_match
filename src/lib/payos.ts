@@ -90,6 +90,8 @@ export class PayOSService {
             )
             .join('&');
 
+          console.log('payosChecksumKey', payosChecksumKey);
+
           const signature = createHmac('sha256', payosChecksumKey as string)
             .update(canonical)
             .digest('hex');
@@ -99,10 +101,6 @@ export class PayOSService {
             items: data.items,
             signature,
           } as const;
-
-          console.log('[PayOS] canonical =', canonical);
-          console.log('[PayOS] signature =', signature);
-          console.log('[PayOS] payload =', payload);
 
           return JSON.stringify(payload);
         })(),
