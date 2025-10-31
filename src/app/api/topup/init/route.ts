@@ -75,7 +75,6 @@ export async function POST(request: NextRequest) {
       paymentUrl = `https://momo.vn/payment?amount=${amount}&tx_ref=${txRef}`;
     } else if (paymentMethod === 'payos') {
       // Use PayOS service if available
-      console.log('abc', payosService.isAvailable());
 
       if (payosService.isAvailable()) {
         try {
@@ -101,6 +100,7 @@ export async function POST(request: NextRequest) {
 
           const paymentLink =
             await payosService.createPaymentLink(paymentLinkData);
+          console.log('paymentLinkData', paymentLinkData);
           console.log('paymentLink', paymentLink);
           paymentUrl = paymentLink.checkoutUrl;
         } catch (error) {
