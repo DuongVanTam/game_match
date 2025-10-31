@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PayOS = require('@payos/node');
+const { PayOS } = require('@payos/node');
 import { createHmac } from 'crypto';
 // PayOS configuration
 const payosClientId = process.env.PAYOS_CLIENT_ID;
@@ -88,7 +88,17 @@ export class PayOSService {
         qrCode: string;
       };
 
-      const payload = (await sdk!.createPaymentLink({
+      console.log('request', {
+        orderCode: data.orderCode,
+        amount: data.amount,
+        description: data.description,
+        items: data.items,
+        returnUrl: data.returnUrl,
+        cancelUrl: data.cancelUrl,
+        signature,
+      });
+
+      const payload = (await sdk!.paymentRequests.create({
         orderCode: data.orderCode,
         amount: data.amount,
         description: data.description,
@@ -145,7 +155,7 @@ export class PayOSService {
         qrCode: string;
       };
 
-      const payload = (await sdk!.getPaymentLinkInformation(
+      const payload = (await sdk!.paymentRequests.get(
         orderCode
       )) as SdkPaymentLink;
       return {
@@ -178,7 +188,7 @@ export class PayOSService {
     }
 
     try {
-      await sdk!.cancelPaymentLink(orderCode, cancellationReason);
+      await sdk!.paymentRequests.cancel(orderCode, cancellationReason);
       return true;
     } catch (error) {
       console.error('Error canceling PayOS payment link:', error);
