@@ -70,21 +70,32 @@ export class PayOSService {
           'x-api-key': payosApiKey as string,
         },
         body: (() => {
-          // Build canonical string sorted alphabetically as required by PayOS
-          const canonical = `amount=${data.amount}&cancelUrl=${data.cancelUrl}&description=${data.description}&orderCode=${data.orderCode}&returnUrl=${data.returnUrl}`;
+          // Normalize values exactly as sent in JSON
+          const normalized = {
+            orderCode: Number(data.orderCode),
+            amount: Number(data.amount),
+            description: String(data.description ?? ''),
+            returnUrl: String(data.returnUrl ?? '').trim(),
+            cancelUrl: String(data.cancelUrl ?? '').trim(),
+          };
+
+          // PayOS signature order: amount, orderCode, description, returnUrl, cancelUrl
+          const canonical = `amount=${normalized.amount}&cancelUrl=${normalized.cancelUrl}&description=${normalized.description}&orderCode=${normalized.orderCode}&returnUrl=${normalized.returnUrl}`;
           const signature = createHmac('sha256', payosChecksumKey as string)
             .update(canonical)
             .digest('hex');
 
-          return JSON.stringify({
-            orderCode: data.orderCode,
-            amount: data.amount,
-            description: data.description,
+          const payload = {
+            ...normalized,
             items: data.items,
-            returnUrl: data.returnUrl,
-            cancelUrl: data.cancelUrl,
             signature,
-          });
+          } as const;
+
+          console.log('[PayOS] canonical =', canonical);
+          console.log('[PayOS] signature =', signature);
+          console.log('[PayOS] payload =', payload);
+
+          return JSON.stringify(payload);
         })(),
       });
 
