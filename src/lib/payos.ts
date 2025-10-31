@@ -76,10 +76,10 @@ export class PayOSService {
             string | number
           > = {
             amount: Number(data.amount),
-            cancelUrl: String(data.cancelUrl ?? '').trim(),
+            cancelUrl: String(data.cancelUrl ?? ''),
             description: String(data.description ?? ''),
             orderCode: Number(data.orderCode),
-            returnUrl: String(data.returnUrl ?? '').trim(),
+            returnUrl: String(data.returnUrl ?? ''),
           };
 
           const canonical = Object.keys(normalized)
