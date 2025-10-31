@@ -86,7 +86,7 @@ export class PayOSService {
             .sort()
             .map(
               (k) =>
-                `${k}=${encodeURIComponent(String(normalized[k as keyof typeof normalized] ?? ''))}`
+                `${k}=${encodeURI(String(normalized[k as keyof typeof normalized] ?? ''))}`
             )
             .join('&');
 
