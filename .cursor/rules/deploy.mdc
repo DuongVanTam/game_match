@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+Luồng deployment khi tôi đưa ra yêu cầu deploy thì thự hiện các bước sau:
+- commit changes: message không quá dài(chỉ ghi task chính)
+- build để check lỗi
+- push to origin
+- sử dụng vercel cli để deploy lên produc

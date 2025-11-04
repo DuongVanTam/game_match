@@ -30,8 +30,10 @@ export function useTopupSSE({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
   const connectFnRef = useRef<(() => void) | null>(null);
+  const connectionStartTimeRef = useRef<number | null>(null);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000; // 3 seconds
+  const connectionTimeout = 10000; // 10 seconds to establish connection
 
   const connect = useCallback(() => {
     if (!txRef || !enabled) {
@@ -52,12 +54,17 @@ export function useTopupSSE({
 
     try {
       const url = `/api/topup/stream?tx_ref=${encodeURIComponent(txRef)}`;
+      connectionStartTimeRef.current = Date.now();
+
+      // Create EventSource - it will automatically include cookies for same-origin requests
       const eventSource = new EventSource(url);
 
       eventSource.onopen = () => {
         setIsConnected(true);
         setError(null);
         reconnectAttempts.current = 0;
+        connectionStartTimeRef.current = null;
+        console.log('SSE connection opened for tx_ref:', txRef);
       };
 
       eventSource.addEventListener('connected', (event) => {
@@ -80,14 +87,13 @@ export function useTopupSSE({
       eventSource.addEventListener('error', (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
-          const errorObj = new Error(data.error || 'Unknown error');
+          const errorObj = new Error(data.error || 'Lỗi không xác định');
           setError(errorObj);
           onError?.(errorObj);
         } catch {
-          // If event.data is not available or not JSON, use generic error
-          const errorObj = new Error('Connection error');
-          setError(errorObj);
-          onError?.(errorObj);
+          // If event.data is not available or not JSON, this is a custom error event
+          // Don't set error here as onerror handler will handle connection errors
+          console.warn('SSE error event received but no data:', event);
         }
       });
 
@@ -97,30 +103,70 @@ export function useTopupSSE({
 
       eventSource.onerror = () => {
         setIsConnected(false);
-        eventSource.close();
 
-        // Attempt to reconnect if not exceeded max attempts
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          reconnectAttempts.current += 1;
-          reconnectTimeoutRef.current = setTimeout(() => {
-            // Use the ref to call connect function (will be updated after connect is defined)
-            if (connectFnRef.current) {
-              connectFnRef.current();
+        // Check if connection state indicates a failed connection
+        // EventSource.readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
+        const now = Date.now();
+        const connectionTime = connectionStartTimeRef.current
+          ? now - connectionStartTimeRef.current
+          : 0;
+
+        if (eventSource.readyState === EventSource.CLOSED) {
+          eventSource.close();
+
+          // Only show error if connection took more than timeout (likely a real failure)
+          // Or if we've exceeded max reconnect attempts
+          if (
+            connectionTime > connectionTimeout ||
+            reconnectAttempts.current >= maxReconnectAttempts
+          ) {
+            // Attempt to reconnect if not exceeded max attempts
+            if (reconnectAttempts.current < maxReconnectAttempts) {
+              reconnectAttempts.current += 1;
+              reconnectTimeoutRef.current = setTimeout(() => {
+                // Use the ref to call connect function (will be updated after connect is defined)
+                if (connectFnRef.current) {
+                  connectFnRef.current();
+                }
+              }, reconnectDelay);
+            } else {
+              const reconnectError = new Error(
+                'Không thể kết nối đến server sau nhiều lần thử. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.'
+              );
+              setError(reconnectError);
+              onError?.(reconnectError);
             }
-          }, reconnectDelay);
-        } else {
-          const reconnectError = new Error(
-            'Failed to reconnect after multiple attempts'
-          );
-          setError(reconnectError);
-          onError?.(reconnectError);
+          } else {
+            // Connection failed quickly, might be auth issue or server error
+            // Try to reconnect automatically
+            if (reconnectAttempts.current < maxReconnectAttempts) {
+              reconnectAttempts.current += 1;
+              reconnectTimeoutRef.current = setTimeout(() => {
+                if (connectFnRef.current) {
+                  connectFnRef.current();
+                }
+              }, reconnectDelay);
+            }
+          }
+        } else if (eventSource.readyState === EventSource.CONNECTING) {
+          // Connection is still trying, don't error yet
+          // Wait for connection timeout before showing error
+          if (connectionTime > connectionTimeout) {
+            const timeoutError = new Error(
+              'Kết nối đang mất quá nhiều thời gian. Vui lòng kiểm tra kết nối mạng.'
+            );
+            setError(timeoutError);
+            onError?.(timeoutError);
+          }
         }
       };
 
       eventSourceRef.current = eventSource;
     } catch (_err) {
       const errorObj =
-        _err instanceof Error ? _err : new Error('Failed to connect');
+        _err instanceof Error
+          ? _err
+          : new Error('Không thể khởi tạo kết nối. Vui lòng thử lại.');
       setError(errorObj);
       onError?.(errorObj);
       setIsConnected(false);
@@ -138,6 +184,7 @@ export function useTopupSSE({
     }
     setIsConnected(false);
     reconnectAttempts.current = 0;
+    connectionStartTimeRef.current = null;
   }, []);
 
   // Update connect function ref in effect

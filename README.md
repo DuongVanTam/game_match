@@ -84,6 +84,11 @@ npm run type-check   # Run TypeScript type checking
 npm run test         # Run tests
 npm run test:watch   # Run tests in watch mode
 npm run test:coverage # Run tests with coverage
+npm run test:sse     # Test SSE connection (requires tx_ref and cookie)
+
+# SSE Testing
+# For detailed SSE testing guide, see docs/sse-testing-guide.md
+# Quick test: Visit http://localhost:3000/test-sse
 ```
 
 ## 🏗️ Project Structure
@@ -132,6 +137,7 @@ Key tables:
 
 ### Future Features
 
+- [x] SSE (Server-Sent Events) for real-time payment updates
 - [ ] PayOS webhook integration
 - [ ] Automated payouts
 - [ ] KYC for large withdrawals
@@ -154,6 +160,28 @@ This platform is designed to comply with Vietnamese regulations:
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## 🧪 Testing SSE (Server-Sent Events)
+
+SSE được sử dụng để push real-time updates về trạng thái thanh toán. Để test SSE:
+
+1. **Test Page (Khuyến nghị)**:
+   - Truy cập `http://localhost:3000/test-sse`
+   - Tạo một topup transaction từ `/wallet/topup`
+   - Copy `tx_ref` và paste vào test page
+   - Connect và test broadcast events
+
+2. **Command Line**:
+
+   ```bash
+   # Node.js script
+   npm run test:sse TFT_123_abc123 "cookie-header-value"
+
+   # Hoặc trực tiếp
+   node scripts/test-sse.js TFT_123_abc123 "cookie-header-value"
+   ```
+
+3. **Xem chi tiết**: Xem `docs/sse-testing-guide.md` để biết hướng dẫn đầy đủ.
 
 ## 📄 License
 

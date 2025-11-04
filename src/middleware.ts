@@ -53,6 +53,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Skip rate limiting for SSE (Server-Sent Events) endpoints
+  // SSE connections are long-lived and should not be rate limited
+  const isSSEEndpoint =
+    pathname.startsWith('/api/topup/stream') ||
+    pathname.startsWith('/api/topup/stream/');
+
+  if (isSSEEndpoint) {
+    // Skip rate limiting for SSE, but still apply authentication and other middleware
+    // (rate limiting will be skipped below)
+  }
+
   const key = getRateLimitKey(request);
   const isApiRoute = pathname.startsWith('/api/');
 
@@ -99,7 +110,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (isRateLimited(key, maxRequests)) {
+  // Skip rate limiting for SSE endpoints (long-lived connections)
+  if (!isSSEEndpoint && isRateLimited(key, maxRequests)) {
     return new NextResponse(
       JSON.stringify({
         error: 'Too many requests',

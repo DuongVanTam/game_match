@@ -48,6 +48,7 @@ export default function WalletTopupPage() {
     status: sseStatus,
     isConnected,
     error: sseError,
+    reconnect,
   } = useTopupSSE({
     txRef,
     enabled: !!txRef,
@@ -61,9 +62,17 @@ export default function WalletTopupPage() {
     },
     onError: (error) => {
       console.error('SSE error:', error);
-      // Fallback to polling if SSE fails
-      if (!isConnected) {
-        setConfirmError('Kết nối bị gián đoạn. Đang thử lại...');
+      // Only show error if we're not connected and it's not a temporary connection issue
+      if (!isConnected && error.message) {
+        // Don't show error immediately - wait a bit to see if connection recovers
+        setTimeout(() => {
+          if (!isConnected) {
+            setConfirmError(
+              error.message ||
+                'Kết nối bị gián đoạn. Vui lòng kiểm tra kết nối mạng.'
+            );
+          }
+        }, 2000);
       }
     },
   });
@@ -228,9 +237,56 @@ export default function WalletTopupPage() {
                   </div>
                 )}
                 {sseError && (
-                  <div className="text-xs text-orange-600">
-                    {sseError.message}
-                  </div>
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <p>{sseError.message}</p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => reconnect()}
+                          >
+                            Thử lại kết nối
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              // Fallback: manually check status
+                              try {
+                                const res = await fetch(
+                                  `/api/topup/status?tx_ref=${encodeURIComponent(txRef || '')}`
+                                );
+                                const data = await res.json();
+                                if (data.status === 'confirmed') {
+                                  setSuccessMessage('Thanh toán thành công!');
+                                  setTimeout(
+                                    () => router.push('/wallet'),
+                                    2000
+                                  );
+                                } else if (data.status === 'failed') {
+                                  setConfirmError('Thanh toán thất bại.');
+                                } else {
+                                  setConfirmError(null);
+                                }
+                              } catch (err) {
+                                console.error('Status check failed:', err);
+                                setConfirmError(
+                                  'Không thể kiểm tra trạng thái. Vui lòng thử lại.'
+                                );
+                              }
+                            }}
+                          >
+                            Kiểm tra thủ công
+                          </Button>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             </CardContent>
