@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
             .from('topups')
             .update({
               status: 'failed',
-              payment_data: { webhook_data: verifiedData },
+              payment_data: { webhook_data: verifiedData } as never,
             })
             .eq('id', topup.id);
 
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
           order_code: orderCode,
           payos_status: status,
           webhook_data: verifiedData,
-        },
+        } as never,
       })
       .eq('id', topup.id);
 
