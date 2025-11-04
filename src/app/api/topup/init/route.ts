@@ -42,6 +42,14 @@ export async function POST(request: NextRequest) {
     // Generate unique transaction reference
     const txRef = `TFT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Generate orderCode for PayOS (if PayOS payment method)
+    let orderCode: number | null = null;
+    if (paymentMethod === 'payos' && payosService.isAvailable()) {
+      // Generate orderCode: extract numbers from txRef or use timestamp
+      orderCode =
+        parseInt(txRef.replace(/\D/g, '').slice(-8)) || Date.now() % 100000000;
+    }
+
     // Create topup record
     // Use service role client for DB writes (bypass RLS) with server-side checks
     const serviceClient = createServerClient();
@@ -54,6 +62,7 @@ export async function POST(request: NextRequest) {
         tx_ref: txRef,
         payment_method: paymentMethod,
         status: 'pending',
+        order_code: orderCode,
       })
       .select()
       .single();
@@ -76,17 +85,24 @@ export async function POST(request: NextRequest) {
     } else if (paymentMethod === 'payos') {
       // Use PayOS service if available
 
-      if (payosService.isAvailable()) {
+      if (payosService.isAvailable() && orderCode) {
         try {
-          const orderCode =
-            parseInt(txRef.replace(/\D/g, '').slice(-8)) ||
-            Date.now() % 100000000;
+          const baseUrl =
+            process.env.NEXT_PUBLIC_BASE_URL || 'https://game-match.net';
+          // description maxlength 25 characters: can't use txRef because it's too long
+          // Format: DD/MM/YY HH:mm (e.g., "25/01/25 14:30" = 13 characters)
+          const now = new Date();
+          const day = String(now.getDate()).padStart(2, '0');
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const year = String(now.getFullYear()).slice(-2);
+          const hours = String(now.getHours()).padStart(2, '0');
+          const minutes = String(now.getMinutes()).padStart(2, '0');
+          const dateTimeStr = `${day}/${month}/${year} ${hours}:${minutes}`; // Format: "25/01/25 14:30"
 
-          const baseUrl = 'https://game-match.net';
           const paymentLinkData = {
             orderCode,
             amount,
-            description: `Nạp tiền tạm ứng dịch vụ`,
+            description: dateTimeStr, // Date and time only, max 13 characters
             items: [
               {
                 name: 'Nạp tiền tạm ứng dịch vụ',
@@ -94,8 +110,8 @@ export async function POST(request: NextRequest) {
                 price: amount,
               },
             ],
-            returnUrl: `${baseUrl}/wallet?success=true&tx_ref=${txRef}`,
-            cancelUrl: `${baseUrl}/wallet?cancelled=true&tx_ref=${txRef}`,
+            returnUrl: `${baseUrl}/wallet/topup/result?success=true&tx_ref=${txRef}`,
+            cancelUrl: `${baseUrl}/wallet/topup/result?cancelled=true&tx_ref=${txRef}`,
           };
 
           const paymentLink =

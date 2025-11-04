@@ -183,6 +183,80 @@ export class PayOSService {
     }
   }
 
+  /**
+   * Register webhook URL with PayOS
+   * @param webhookUrl - The webhook URL to register
+   * @returns Promise<boolean> - True if registration successful
+   */
+  public async registerWebhook(webhookUrl: string): Promise<boolean> {
+    if (!this.isAvailable() || !this.payOS) {
+      throw new Error(
+        'PayOS client not initialized. Please check environment variables.'
+      );
+    }
+
+    try {
+      await this.payOS.webhooks.confirm(webhookUrl);
+      return true;
+    } catch (error) {
+      console.error('Error registering PayOS webhook:', error);
+      throw new Error(
+        `Failed to register webhook: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Verify webhook data using PayOS SDK
+   * @param webhookData - The webhook data to verify
+   * @returns Verified webhook data (as returned by SDK) or throws error if invalid
+   */
+  public verifyWebhookData(webhookData: unknown): {
+    orderCode: number;
+    amount: number;
+    description: string;
+    accountNumber: string;
+    reference: string;
+    transactionDateTime: string;
+    currency: string;
+    paymentLinkId: string;
+    code: string;
+    desc: string;
+    counterAccountBankId: string | null;
+    counterAccountBankName: string | null;
+    counterAccountName: string | null;
+    counterAccountNumber: string | null;
+    virtualAccountName: string | null;
+    virtualAccountNumber: string | null;
+    [key: string]: unknown;
+  } {
+    if (!this.isAvailable() || !this.payOS) {
+      throw new Error(
+        'PayOS client not initialized. Please check environment variables.'
+      );
+    }
+
+    try {
+      // PayOS SDK verify method validates the webhook data
+      // It returns WebhookData which contains orderCode, amount, code (status), etc.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const verifiedData = this.payOS.webhooks.verify(webhookData as any);
+
+      // Return the verified data directly from SDK
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return verifiedData as any;
+    } catch (error) {
+      console.error('Error verifying PayOS webhook data:', error);
+      throw new Error(
+        `Invalid webhook data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Legacy method: Verify webhook signature manually (fallback)
+   * @deprecated Use verifyWebhookData instead which uses SDK
+   */
   public verifyWebhookSignature(
     webhookBody: string,
     signature: string
@@ -200,20 +274,6 @@ export class PayOSService {
       return calculatedSignature === signature;
     } catch (error) {
       console.error('Error verifying PayOS webhook signature:', error);
-      return false;
-    }
-  }
-
-  public verifyWebhookData(webhookData: unknown): boolean {
-    if (!this.isAvailable()) {
-      return false;
-    }
-
-    try {
-      // Basic validation - ensure payload has expected structure
-      return typeof webhookData === 'object' && webhookData !== null;
-    } catch (error) {
-      console.error('Error verifying PayOS webhook data:', error);
       return false;
     }
   }

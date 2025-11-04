@@ -1,32 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
 import { payosService } from '@/lib/payos';
+import { broadcastManager } from '@/lib/broadcast';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get raw body as text for signature verification
+    // Get raw body for webhook verification
     const rawBody = await request.text();
-    const signature = request.headers.get('x-payos-signature');
+    let body: unknown;
 
-    if (!signature) {
-      return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON payload' },
+        { status: 400 }
+      );
     }
 
-    // Verify webhook signature
-    if (!payosService.verifyWebhookSignature(rawBody, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    // Verify webhook data using PayOS SDK
+    let verifiedData;
+    try {
+      verifiedData = payosService.verifyWebhookData(body);
+    } catch (error) {
+      console.error('Webhook verification failed:', error);
+      return NextResponse.json(
+        {
+          error: 'Invalid webhook data',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
+        { status: 400 }
+      );
     }
 
-    // Parse body after signature verification
-    const body = JSON.parse(rawBody);
+    // Extract data from verified webhook
+    // PayOS SDK verify returns WebhookData directly: { orderCode, amount, description, code, ... }
+    const webhookData = verifiedData;
 
-    const { orderCode, status, description } = body;
+    // Extract orderCode and status from verified webhook data
+    const orderCode = webhookData.orderCode;
+    const status = webhookData.code; // PayOS uses 'code' field for status (e.g., 'PAID', 'CANCELLED')
+    const description = webhookData.description || '';
 
-    // Handle non-success statuses: mark failed/canceled/expired if provided
-    if (status !== 'PAID') {
-      const client = createServerClient();
+    const client = createServerClient();
 
-      const { description } = body || {};
+    // Find topup by orderCode (primary method) or fallback to description parsing
+    let topup;
+    let topupError;
+
+    // Try to find by orderCode first (more reliable)
+    if (orderCode) {
+      const result = await client
+        .from('topups')
+        .select('*')
+        .eq('order_code', orderCode)
+        .single();
+      topup = result.data;
+      topupError = result.error;
+    }
+
+    // Fallback: extract tx_ref from description if orderCode match failed
+    if ((topupError || !topup) && description) {
       const txRefMatch =
         typeof description === 'string'
           ? description.match(/TFT_\d+_[a-zA-Z0-9]+/)
@@ -34,28 +68,38 @@ export async function POST(request: NextRequest) {
       const txRef = txRefMatch ? txRefMatch[0] : null;
 
       if (txRef) {
-        const { data: topup } = await client
+        const result = await client
           .from('topups')
-          .select('id,status')
+          .select('*')
           .eq('tx_ref', txRef)
           .single();
+        topup = result.data;
+        topupError = result.error;
+      }
+    }
 
-        if (topup && topup.status !== 'confirmed') {
-          const failingStatuses = [
-            'CANCELED',
-            'CANCELLED',
-            'EXPIRED',
-            'FAILED',
-          ];
-          if (failingStatuses.includes(String(status).toUpperCase())) {
-            await client
-              .from('topups')
-              .update({
-                status: 'failed',
-                payment_data: { webhook_data: body },
-              })
-              .eq('id', topup.id);
-          }
+    // Handle non-success statuses: mark failed/canceled/expired if provided
+    if (status !== 'PAID') {
+      if (topup && topup.status !== 'confirmed') {
+        const failingStatuses = ['CANCELED', 'CANCELLED', 'EXPIRED', 'FAILED'];
+        if (failingStatuses.includes(String(status).toUpperCase())) {
+          await client
+            .from('topups')
+            .update({
+              status: 'failed',
+              payment_data: { webhook_data: verifiedData },
+            })
+            .eq('id', topup.id);
+
+          // Broadcast failure event via SSE
+          broadcastManager.broadcast(topup.tx_ref, {
+            type: 'status-update',
+            data: {
+              tx_ref: topup.tx_ref,
+              status: 'failed',
+              amount: topup.amount,
+            },
+          });
         }
       }
 
@@ -65,28 +109,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const client = createServerClient();
-
-    // Find the topup record by orderCode (we'll need to store this mapping)
-    // For now, we'll extract tx_ref from description
-    const txRefMatch = description.match(/TFT_\d+_[a-zA-Z0-9]+/);
-    if (!txRefMatch) {
-      return NextResponse.json(
-        { error: 'Invalid transaction reference' },
-        { status: 400 }
-      );
-    }
-
-    const txRef = txRefMatch[0];
-
-    // Get the topup record
-    const { data: topup, error: topupError } = await client
-      .from('topups')
-      .select('*')
-      .eq('tx_ref', txRef)
-      .single();
+    // Get the topup record (already fetched above for PAID status)
 
     if (topupError || !topup) {
+      console.error('Topup not found:', { orderCode, description, topupError });
       return NextResponse.json(
         { error: 'Topup record not found' },
         { status: 404 }
@@ -95,6 +121,16 @@ export async function POST(request: NextRequest) {
 
     // Check if already confirmed
     if (topup.status === 'confirmed') {
+      // Still broadcast event in case client is waiting
+      broadcastManager.broadcast(topup.tx_ref, {
+        type: 'status-update',
+        data: {
+          tx_ref: topup.tx_ref,
+          status: 'confirmed',
+          amount: topup.amount,
+          confirmed_at: topup.confirmed_at || new Date().toISOString(),
+        },
+      });
       return NextResponse.json({ success: true, message: 'Already confirmed' });
     }
 
@@ -105,11 +141,11 @@ export async function POST(request: NextRequest) {
         p_user_id: topup.user_id,
         p_amount: topup.amount,
         p_transaction_type: 'topup',
-        p_description: `Nạp tiền qua PayOS - ${txRef}`,
+        p_description: `Nạp tiền qua PayOS - ${topup.tx_ref}`,
         p_reference_id: topup.id,
         p_reference_type: 'topup',
         p_metadata: {
-          tx_ref: txRef,
+          tx_ref: topup.tx_ref,
           payment_method: 'payos',
           order_code: orderCode,
           payos_status: status,
@@ -119,33 +155,62 @@ export async function POST(request: NextRequest) {
 
     if (walletError) {
       console.error('Error updating wallet balance:', walletError);
+      // Broadcast error event
+      broadcastManager.broadcast(topup.tx_ref, {
+        type: 'error',
+        data: {
+          tx_ref: topup.tx_ref,
+          error: 'Failed to update wallet balance',
+        },
+      });
       return NextResponse.json(
         { error: 'Failed to update wallet balance' },
         { status: 500 }
       );
     }
 
+    const confirmedAt = new Date().toISOString();
+
     // Update topup status
     const { error: updateError } = await client
       .from('topups')
       .update({
         status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
+        confirmed_at: confirmedAt,
         payment_data: {
           order_code: orderCode,
           payos_status: status,
-          webhook_data: body,
+          webhook_data: verifiedData,
         },
       })
       .eq('id', topup.id);
 
     if (updateError) {
       console.error('Error updating topup status:', updateError);
+      // Broadcast error event
+      broadcastManager.broadcast(topup.tx_ref, {
+        type: 'error',
+        data: {
+          tx_ref: topup.tx_ref,
+          error: 'Failed to update topup status',
+        },
+      });
       return NextResponse.json(
         { error: 'Failed to update topup status' },
         { status: 500 }
       );
     }
+
+    // Broadcast success event via SSE
+    broadcastManager.broadcast(topup.tx_ref, {
+      type: 'status-update',
+      data: {
+        tx_ref: topup.tx_ref,
+        status: 'confirmed',
+        amount: topup.amount,
+        confirmed_at: confirmedAt,
+      },
+    });
 
     return NextResponse.json({
       success: true,

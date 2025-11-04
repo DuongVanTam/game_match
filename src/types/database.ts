@@ -93,6 +93,7 @@ export interface Database {
           payment_method: string | null;
           payment_data: Json | null;
           confirmed_at: string | null;
+          order_code: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -105,6 +106,7 @@ export interface Database {
           payment_method?: string | null;
           payment_data?: Json | null;
           confirmed_at?: string | null;
+          order_code?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -117,6 +119,7 @@ export interface Database {
           payment_method?: string | null;
           payment_data?: Json | null;
           confirmed_at?: string | null;
+          order_code?: number | null;
           created_at?: string;
           updated_at?: string;
         };

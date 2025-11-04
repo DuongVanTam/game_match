@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { useTopupSSE } from '@/hooks/useTopupSSE';
 
 export default function WalletTopupPage() {
   const router = useRouter();
@@ -41,9 +42,33 @@ export default function WalletTopupPage() {
   const [txRef, setTxRef] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
-  const [status, setStatus] = useState<
-    'pending' | 'confirmed' | 'failed' | null
-  >(null);
+
+  // Use SSE hook for real-time status updates
+  const {
+    status: sseStatus,
+    isConnected,
+    error: sseError,
+  } = useTopupSSE({
+    txRef,
+    enabled: !!txRef,
+    onStatusUpdate: (statusData) => {
+      if (statusData.status === 'confirmed') {
+        setSuccessMessage('Thanh toán thành công! Số dư sẽ được cập nhật.');
+        setTimeout(() => router.push('/wallet'), 2000);
+      } else if (statusData.status === 'failed') {
+        setConfirmError('Thanh toán thất bại hoặc đã hủy. Vui lòng thử lại.');
+      }
+    },
+    onError: (error) => {
+      console.error('SSE error:', error);
+      // Fallback to polling if SSE fails
+      if (!isConnected) {
+        setConfirmError('Kết nối bị gián đoạn. Đang thử lại...');
+      }
+    },
+  });
+
+  const status = sseStatus?.status || null;
 
   const formatCurrency = (v: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -83,56 +108,6 @@ export default function WalletTopupPage() {
       window.open(paymentUrl, '_blank', 'noopener,noreferrer');
     }
   };
-
-  // Poll topup status after init
-  useEffect(() => {
-    if (!txRef) return;
-    setStatus('pending');
-    let cancelled = false;
-    const start = Date.now();
-
-    const poll = async () => {
-      try {
-        const res = await fetch(
-          `/api/topup/status?tx_ref=${encodeURIComponent(txRef)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'confirmed') {
-            if (!cancelled) {
-              setStatus('confirmed');
-              setSuccessMessage(
-                'Thanh toán thành công! Số dư sẽ được cập nhật.'
-              );
-              setTimeout(() => router.push('/wallet'), 1000);
-            }
-            return;
-          }
-          if (data.status === 'failed') {
-            if (!cancelled) {
-              setStatus('failed');
-              setConfirmError(
-                'Thanh toán thất bại hoặc đã hủy. Vui lòng thử lại.'
-              );
-            }
-            return;
-          }
-        }
-      } catch (e) {
-        // ignore intermittent errors
-      }
-
-      if (!cancelled && Date.now() - start < 3 * 60 * 1000) {
-        setTimeout(poll, 3000);
-      }
-    };
-
-    const t = setTimeout(poll, 3000);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [txRef, router]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -245,6 +220,16 @@ export default function WalletTopupPage() {
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 animate-spin" /> Đang chờ xác
                     nhận thanh toán...
+                    {isConnected && (
+                      <span className="text-xs text-green-600">
+                        (Đã kết nối)
+                      </span>
+                    )}
+                  </div>
+                )}
+                {sseError && (
+                  <div className="text-xs text-orange-600">
+                    {sseError.message}
                   </div>
                 )}
               </div>
