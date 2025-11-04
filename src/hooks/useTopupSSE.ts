@@ -77,11 +77,18 @@ export function useTopupSSE({
         onStatusUpdate?.(newStatus);
       });
 
-      eventSource.addEventListener('error', (event) => {
-        const data = JSON.parse(event.data);
-        const errorObj = new Error(data.error || 'Unknown error');
-        setError(errorObj);
-        onError?.(errorObj);
+      eventSource.addEventListener('error', (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          const errorObj = new Error(data.error || 'Unknown error');
+          setError(errorObj);
+          onError?.(errorObj);
+        } catch {
+          // If event.data is not available or not JSON, use generic error
+          const errorObj = new Error('Connection error');
+          setError(errorObj);
+          onError?.(errorObj);
+        }
       });
 
       eventSource.addEventListener('heartbeat', () => {
