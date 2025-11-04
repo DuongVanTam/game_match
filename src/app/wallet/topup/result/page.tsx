@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
-export default function TopupResultPage() {
+function TopupResultContent() {
   const searchParams = useSearchParams();
   const [isClosing, setIsClosing] = useState(false);
 
@@ -157,5 +157,19 @@ export default function TopupResultPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TopupResultPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        </div>
+      }
+    >
+      <TopupResultContent />
+    </Suspense>
   );
 }
