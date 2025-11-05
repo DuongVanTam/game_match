@@ -101,16 +101,36 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     webhookUrl,
-    message: 'Configure this URL in PayOS dashboard',
+    message: '⚠️ IMPORTANT: PayOS does NOT have webhook settings in Dashboard!',
     instructions: [
-      '1. Go to PayOS Dashboard',
-      '2. Navigate to Webhook Settings',
-      '3. Set webhook URL to: ' + webhookUrl,
-      '4. Or use POST /api/payos/webhook/register to register programmatically',
+      'PayOS does NOT provide webhook configuration in Dashboard.',
+      'You MUST register webhook via API/SDK only.',
+      '',
+      'To register webhook, use one of these methods:',
+      '',
+      'Method 1: Use API endpoint (recommended):',
+      `  POST /api/payos/webhook/register`,
+      `  Body: { "webhookUrl": "${webhookUrl}" }`,
+      '',
+      'Method 2: Use PayOS SDK directly:',
+      '  const payOS = new PayOS(clientId, apiKey, checksumKey);',
+      `  await payOS.webhooks.confirm("${webhookUrl}");`,
+      '',
+      'Method 3: Use browser console (after login):',
+      `  fetch('/api/payos/webhook/register', {`,
+      "    method: 'POST',",
+      "    headers: { 'Content-Type': 'application/json' },",
+      "    credentials: 'include',",
+      `    body: JSON.stringify({ webhookUrl: '${webhookUrl}' })`,
+      '  }).then(r => r.json()).then(console.log)',
     ],
     currentConfig: {
       payosConfigured: payosService.isAvailable(),
       webhookUrl,
+    },
+    documentation: {
+      payosApi: 'https://payos.vn/docs/api/',
+      payosNodeSdk: 'https://payos.vn/docs/sdks/back-end/node',
     },
   });
 }

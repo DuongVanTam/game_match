@@ -4,9 +4,15 @@
 
 Nếu không thấy logs từ webhook endpoint, có thể do:
 
-1. **Webhook URL chưa được register với PayOS**
+1. **Webhook URL chưa được register với PayOS** (quan trọng nhất!)
 2. **PayOS chưa gửi webhook đến server**
 3. **Webhook URL không đúng hoặc không accessible**
+
+## ⚠️ Lưu ý quan trọng
+
+**PayOS KHÔNG có giao diện Dashboard để đăng ký webhook!**
+
+Bạn **PHẢI** đăng ký webhook thông qua **API hoặc SDK** của PayOS. Giao diện Dashboard không có tùy chọn này.
 
 ## Cách kiểm tra và setup
 
@@ -34,9 +40,9 @@ Sẽ trả về:
 }
 ```
 
-### 2. Register Webhook tự động (nếu PayOS SDK hỗ trợ)
+### 2. Register Webhook qua API (Cách đúng!)
 
-**POST request:**
+**POST request đến endpoint register:**
 
 ```bash
 curl -X POST https://your-domain.com/api/payos/webhook/register \
@@ -47,15 +53,28 @@ curl -X POST https://your-domain.com/api/payos/webhook/register \
   }'
 ```
 
-### 3. Register Webhook thủ công trong PayOS Dashboard
+**Hoặc từ browser console (sau khi đã login):**
 
-1. Đăng nhập vào **PayOS Dashboard**
-2. Vào **Settings** → **Webhooks** (hoặc **Integration** → **Webhooks**)
-3. Thêm webhook URL:
-   ```
-   https://your-domain.com/api/payos/webhook
-   ```
-4. Lưu cấu hình
+```javascript
+fetch('/api/payos/webhook/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({
+    webhookUrl: 'https://game-match.net/api/payos/webhook',
+  }),
+})
+  .then((r) => r.json())
+  .then(console.log);
+```
+
+**Endpoint này sử dụng PayOS SDK method `webhooks.confirm()` để đăng ký webhook.**
+
+### 3. Kiểm tra PayOS API Documentation
+
+PayOS sử dụng API `confirm-webhook` để đăng ký webhook. Endpoint register của chúng ta đã wrap API này.
+
+Xem thêm: https://payos.vn/docs/api/
 
 ### 4. Test Webhook thủ công
 

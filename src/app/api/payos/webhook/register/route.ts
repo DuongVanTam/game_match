@@ -74,9 +74,10 @@ export async function POST(request: NextRequest) {
         {
           error: 'Failed to register webhook',
           details: error instanceof Error ? error.message : 'Unknown error',
-          suggestion:
-            'You may need to register the webhook URL manually in PayOS dashboard',
+          note: 'PayOS does NOT have webhook settings in Dashboard. You MUST register via API/SDK.',
           webhookUrl,
+          suggestion:
+            'Check PayOS API documentation: https://payos.vn/docs/api/',
         },
         { status: 500 }
       );

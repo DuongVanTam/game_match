@@ -19,6 +19,7 @@
     "test:monitoring": "jest src/__tests__/phase9-monitoring.test.ts",
     "test:all": "jest --coverage --passWithNoTests",
     "test:sse": "node scripts/test-sse.js",
+    "register-webhook": "node scripts/auto-register-webhook.js",
     "deploy:staging": "chmod +x scripts/deploy-staging.sh && ./scripts/deploy-staging.sh",
     "deploy:prod": "chmod +x scripts/deploy-production.sh && ./scripts/deploy-production.sh",
     "health-check": "curl -f http://localhost:3000/api/monitoring?endpoint=health || exit 1",
