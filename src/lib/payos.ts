@@ -37,7 +37,6 @@ export class PayOSService {
   private static instance: PayOSService;
   private payOS: PayOS | null = null;
   private static webhookRegistered = false;
-  private static webhookRegistrationPromise: Promise<boolean> | null = null;
 
   private constructor() {
     if (this.isAvailable()) {
@@ -256,83 +255,6 @@ export class PayOSService {
 
       throw new Error(`Failed to register webhook: ${errorMessage}`);
     }
-  }
-
-  /**
-   * Auto-register webhook URL on service initialization (in production)
-   * This method is idempotent and will only register once per process
-   * @param force - Force re-registration even if already registered
-   * @returns Promise<boolean> - True if registration successful or already registered
-   */
-  public async autoRegisterWebhook(force = false): Promise<boolean> {
-    // Only auto-register in production
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(
-        'Skipping webhook auto-registration in non-production environment'
-      );
-      return false;
-    }
-
-    // If already registered and not forcing, return true
-    if (PayOSService.webhookRegistered && !force) {
-      return true;
-    }
-
-    // If registration is already in progress, wait for it
-    if (PayOSService.webhookRegistrationPromise && !force) {
-      return PayOSService.webhookRegistrationPromise;
-    }
-
-    // Start registration
-    PayOSService.webhookRegistrationPromise = (async () => {
-      try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL || 'https://game-match.net';
-        const webhookUrl = `${baseUrl}/api/payos/webhook`;
-
-        console.log('Auto-registering PayOS webhook:', webhookUrl);
-        const result = await this.registerWebhook(webhookUrl);
-        console.log(
-          '✅ PayOS webhook auto-registered successfully:',
-          webhookUrl
-        );
-        return result;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error';
-        console.error(
-          '❌ Failed to auto-register PayOS webhook:',
-          errorMessage
-        );
-
-        // Check if webhook might already be registered (common error: "already registered")
-        if (
-          errorMessage.includes('already') ||
-          errorMessage.includes('exists') ||
-          errorMessage.includes('duplicate')
-        ) {
-          console.log(
-            'ℹ️ Webhook may already be registered. PayOS will still send webhooks.'
-          );
-          // Mark as registered even if API call failed (webhook might already exist)
-          PayOSService.webhookRegistered = true;
-          return true;
-        }
-
-        // For other errors, log but don't fail the app
-        console.error(
-          '⚠️ Auto-registration failed, but webhook may still work if already registered.',
-          'You can register manually via POST /api/payos/webhook/register'
-        );
-
-        // Reset flag on error so it can be retried
-        PayOSService.webhookRegistered = false;
-        PayOSService.webhookRegistrationPromise = null;
-        return false;
-      }
-    })();
-
-    return PayOSService.webhookRegistrationPromise;
   }
 
   /**
