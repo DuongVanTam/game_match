@@ -17,12 +17,26 @@ export async function register() {
 
     // Use the auto-register method from PayOSService
     // This method handles all the logic internally (production check, idempotency, etc.)
-    await payosService.autoRegisterWebhook();
+    const registered = await payosService.autoRegisterWebhook();
+
+    if (!registered) {
+      console.warn(
+        '⚠️ Webhook auto-registration failed, but webhooks may still work if already registered.'
+      );
+      console.warn(
+        'You can verify webhook status by checking PayOS logs or testing a payment.'
+      );
+    }
   } catch (error) {
     // Log error but don't throw - webhook registration failure shouldn't crash the app
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     console.error(
       '❌ Failed to auto-register PayOS webhook in instrumentation:',
-      error
+      errorMessage
+    );
+    console.warn(
+      '⚠️ Note: Webhook registration failure does not prevent webhooks from working if already registered.'
     );
   }
 }

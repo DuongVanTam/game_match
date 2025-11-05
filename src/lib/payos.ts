@@ -197,15 +197,64 @@ export class PayOSService {
       );
     }
 
+    // Validate webhook URL format
     try {
+      const url = new URL(webhookUrl);
+      if (url.protocol !== 'https:') {
+        throw new Error(
+          'Webhook URL must use HTTPS protocol. PayOS requires HTTPS for webhook URLs.'
+        );
+      }
+      if (!url.hostname || url.hostname === 'localhost') {
+        throw new Error(
+          'Webhook URL must use a public domain. localhost is not allowed.'
+        );
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`Invalid webhook URL format: ${webhookUrl}`);
+      }
+      throw error;
+    }
+
+    try {
+      console.log('Attempting to register PayOS webhook:', webhookUrl);
       await this.payOS.webhooks.confirm(webhookUrl);
       PayOSService.webhookRegistered = true;
+      console.log('✅ PayOS webhook registered successfully:', webhookUrl);
       return true;
     } catch (error) {
-      console.error('Error registering PayOS webhook:', error);
-      throw new Error(
-        `Failed to register webhook: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      console.error('❌ Error registering PayOS webhook:', error);
+
+      // Provide more detailed error information
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // Check for specific error patterns
+        if (
+          error.message.includes('400') ||
+          error.message.includes('invalid')
+        ) {
+          errorMessage +=
+            '. PayOS may require the URL to be publicly accessible and use HTTPS. ' +
+            'Also ensure the domain is not blocked and the endpoint returns 200 OK.';
+        } else if (
+          error.message.includes('401') ||
+          error.message.includes('Unauthorized')
+        ) {
+          errorMessage +=
+            '. Check your PayOS credentials (CLIENT_ID, API_KEY, CHECKSUM_KEY).';
+        } else if (
+          error.message.includes('403') ||
+          error.message.includes('Forbidden')
+        ) {
+          errorMessage +=
+            '. Your PayOS account may not have permission to register webhooks.';
+        }
+      }
+
+      throw new Error(`Failed to register webhook: ${errorMessage}`);
     }
   }
 
@@ -249,10 +298,33 @@ export class PayOSService {
         );
         return result;
       } catch (error) {
-        console.error('❌ Failed to auto-register PayOS webhook:', error);
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
         console.error(
-          'You may need to register webhook manually via POST /api/payos/webhook/register'
+          '❌ Failed to auto-register PayOS webhook:',
+          errorMessage
         );
+
+        // Check if webhook might already be registered (common error: "already registered")
+        if (
+          errorMessage.includes('already') ||
+          errorMessage.includes('exists') ||
+          errorMessage.includes('duplicate')
+        ) {
+          console.log(
+            'ℹ️ Webhook may already be registered. PayOS will still send webhooks.'
+          );
+          // Mark as registered even if API call failed (webhook might already exist)
+          PayOSService.webhookRegistered = true;
+          return true;
+        }
+
+        // For other errors, log but don't fail the app
+        console.error(
+          '⚠️ Auto-registration failed, but webhook may still work if already registered.',
+          'You can register manually via POST /api/payos/webhook/register'
+        );
+
         // Reset flag on error so it can be retried
         PayOSService.webhookRegistered = false;
         PayOSService.webhookRegistrationPromise = null;

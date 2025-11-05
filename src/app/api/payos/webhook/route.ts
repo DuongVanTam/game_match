@@ -5,6 +5,10 @@ import { broadcastManager } from '@/lib/broadcast';
 
 export async function POST(request: NextRequest) {
   // Log webhook received
+  // NOTE: If you see "Webhook verified successfully" but auto-registration failed,
+  // it means the webhook was already registered previously (from manual registration
+  // or a previous deployment). PayOS will continue sending webhooks even if
+  // re-registration fails.
   console.log('=== PAYOS WEBHOOK RECEIVED ===');
   console.log('Timestamp:', new Date().toISOString());
   console.log('Headers:', {
