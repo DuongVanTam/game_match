@@ -52,7 +52,7 @@ export default function TestSSEPage() {
         addEvent('connection', 'Connected', { status: 'open' });
       };
 
-      eventSource.addEventListener('connected', (event) => {
+      eventSource.addEventListener('connected', (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           addEvent('connected', 'Connection confirmed', data);
@@ -61,7 +61,7 @@ export default function TestSSEPage() {
         }
       });
 
-      eventSource.addEventListener('status-update', (event) => {
+      eventSource.addEventListener('status-update', (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           addEvent('status-update', 'Status Update', data);
@@ -70,7 +70,7 @@ export default function TestSSEPage() {
         }
       });
 
-      eventSource.addEventListener('error', (event) => {
+      eventSource.addEventListener('error', (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           addEvent('error', 'Error Event', data);
@@ -79,7 +79,7 @@ export default function TestSSEPage() {
         }
       });
 
-      eventSource.addEventListener('heartbeat', (event) => {
+      eventSource.addEventListener('heartbeat', (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data);
           addEvent('heartbeat', 'Heartbeat', data);

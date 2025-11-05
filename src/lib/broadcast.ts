@@ -62,21 +62,34 @@ class BroadcastManager {
   broadcast(txRef: string, event: BroadcastEvent): void {
     const connections = this.connections.get(txRef);
     if (!connections || connections.size === 0) {
+      console.warn(
+        `No SSE connections found for tx_ref: ${txRef}. Event will not be delivered.`
+      );
       return;
     }
 
     const message = `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`;
     const deadConnections: SSEConnection[] = [];
+    let successCount = 0;
+
+    console.log(
+      `Broadcasting ${event.type} to ${connections.size} connection(s) for tx_ref: ${txRef}`
+    );
 
     connections.forEach((connection) => {
       try {
         connection.controller.enqueue(new TextEncoder().encode(message));
+        successCount++;
       } catch (error) {
         // Connection is dead, mark for removal
         console.error('Error broadcasting to connection:', error);
         deadConnections.push(connection);
       }
     });
+
+    console.log(
+      `Successfully broadcasted to ${successCount}/${connections.size} connection(s) for tx_ref: ${txRef}`
+    );
 
     // Clean up dead connections
     deadConnections.forEach((conn) => {

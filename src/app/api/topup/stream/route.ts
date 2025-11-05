@@ -64,8 +64,16 @@ export async function GET(request: NextRequest) {
       // Subscribe to events for this tx_ref
       broadcastManager.subscribe(txRef, connection);
 
+      const connectionCount = broadcastManager.getConnectionCount(txRef);
+      console.log(
+        `SSE connection established for tx_ref: ${txRef}, user: ${user.id}, total connections: ${connectionCount}`
+      );
+
       // Handle client disconnect
       request.signal.addEventListener('abort', () => {
+        console.log(
+          `SSE connection closed for tx_ref: ${txRef}, user: ${user.id}`
+        );
         broadcastManager.unsubscribe(txRef, connection);
         try {
           controller.close();

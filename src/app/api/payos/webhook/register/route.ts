@@ -58,11 +58,15 @@ export async function POST(request: NextRequest) {
 
     // Register webhook with PayOS
     try {
+      console.log('Registering webhook URL with PayOS:', webhookUrl);
       await payosService.registerWebhook(webhookUrl);
+      console.log('Webhook registered successfully');
+
       return NextResponse.json({
         success: true,
         message: 'Webhook registered successfully',
         webhookUrl,
+        note: 'PayOS will send webhook events to this URL when payment status changes',
       });
     } catch (error) {
       console.error('Error registering webhook:', error);
@@ -70,6 +74,9 @@ export async function POST(request: NextRequest) {
         {
           error: 'Failed to register webhook',
           details: error instanceof Error ? error.message : 'Unknown error',
+          suggestion:
+            'You may need to register the webhook URL manually in PayOS dashboard',
+          webhookUrl,
         },
         { status: 500 }
       );

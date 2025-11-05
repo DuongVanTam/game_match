@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -53,6 +53,7 @@ export default function WalletTopupPage() {
     txRef,
     enabled: !!txRef,
     onStatusUpdate: (statusData) => {
+      console.log('SSE status update received in topup page:', statusData);
       if (statusData.status === 'confirmed') {
         setSuccessMessage('Thanh toán thành công! Số dư sẽ được cập nhật.');
         setTimeout(() => router.push('/wallet'), 2000);
@@ -78,6 +79,90 @@ export default function WalletTopupPage() {
   });
 
   const status = sseStatus?.status || null;
+
+  // Fallback polling if SSE is not connected after 5 seconds
+  // This handles the case where webhook and SSE are on different serverless instances
+  useEffect(() => {
+    if (!txRef) {
+      return;
+    }
+
+    let pollingTimeout: NodeJS.Timeout | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let pollingActive = true;
+
+    // Start polling after 5 seconds if SSE is not connected
+    pollingTimeout = setTimeout(() => {
+      // Check current status
+      const currentStatus = sseStatus?.status || null;
+
+      if (!isConnected && currentStatus === 'pending') {
+        console.log(
+          'SSE not connected, starting fallback polling for tx_ref:',
+          txRef
+        );
+
+        let pollCount = 0;
+        const maxPolls = 60; // Poll for 3 minutes (60 * 3 seconds)
+
+        const poll = async () => {
+          if (!pollingActive) return;
+
+          try {
+            const res = await fetch(
+              `/api/topup/status?tx_ref=${encodeURIComponent(txRef)}`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              console.log('Polling status check result:', data);
+
+              if (data.status === 'confirmed') {
+                pollingActive = false;
+                if (pollInterval) clearInterval(pollInterval);
+                setSuccessMessage(
+                  'Thanh toán thành công! Số dư sẽ được cập nhật.'
+                );
+                setTimeout(() => router.push('/wallet'), 2000);
+                return; // Stop polling
+              }
+              if (data.status === 'failed') {
+                pollingActive = false;
+                if (pollInterval) clearInterval(pollInterval);
+                setConfirmError(
+                  'Thanh toán thất bại hoặc đã hủy. Vui lòng thử lại.'
+                );
+                return; // Stop polling
+              }
+
+              // Continue polling if still pending
+              pollCount++;
+              if (pollCount >= maxPolls || !pollingActive) {
+                pollingActive = false;
+                if (pollInterval) clearInterval(pollInterval);
+              }
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+            pollCount++;
+            if (pollCount >= maxPolls || !pollingActive) {
+              pollingActive = false;
+              if (pollInterval) clearInterval(pollInterval);
+            }
+          }
+        };
+
+        // Start polling immediately, then every 3 seconds
+        poll();
+        pollInterval = setInterval(poll, 3000);
+      }
+    }, 5000); // Wait 5 seconds before starting fallback polling
+
+    return () => {
+      pollingActive = false;
+      if (pollingTimeout) clearTimeout(pollingTimeout);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [txRef, isConnected, sseStatus?.status, router]);
 
   const formatCurrency = (v: number) =>
     new Intl.NumberFormat('vi-VN', {

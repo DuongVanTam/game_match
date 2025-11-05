@@ -4,9 +4,21 @@ import { payosService } from '@/lib/payos';
 import { broadcastManager } from '@/lib/broadcast';
 
 export async function POST(request: NextRequest) {
+  // Log webhook received
+  console.log('=== PAYOS WEBHOOK RECEIVED ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('Headers:', {
+    'x-payos-signature': request.headers.get('x-payos-signature'),
+    'content-type': request.headers.get('content-type'),
+    'user-agent': request.headers.get('user-agent'),
+  });
+
   try {
     // Get raw body for webhook verification
     const rawBody = await request.text();
+    console.log('Raw body length:', rawBody.length);
+    console.log('Raw body preview:', rawBody.substring(0, 200));
+
     let body: unknown;
 
     try {
@@ -41,6 +53,13 @@ export async function POST(request: NextRequest) {
     const orderCode = webhookData.orderCode;
     const status = webhookData.code; // PayOS uses 'code' field for status (e.g., 'PAID', 'CANCELLED')
     const description = webhookData.description || '';
+
+    console.log('Webhook verified successfully:', {
+      orderCode,
+      status,
+      description,
+      amount: webhookData.amount,
+    });
 
     const client = createServerClient();
 
@@ -122,6 +141,20 @@ export async function POST(request: NextRequest) {
     // Check if already confirmed
     if (topup.status === 'confirmed') {
       // Still broadcast event in case client is waiting
+      console.log(
+        'Topup already confirmed, broadcasting event for tx_ref:',
+        topup.tx_ref
+      );
+      const alreadyConfirmedCount = broadcastManager.getConnectionCount(
+        topup.tx_ref
+      );
+      console.log(
+        'Active SSE connections for already-confirmed tx_ref:',
+        topup.tx_ref,
+        '=',
+        alreadyConfirmedCount
+      );
+
       broadcastManager.broadcast(topup.tx_ref, {
         type: 'status-update',
         data: {
@@ -131,7 +164,11 @@ export async function POST(request: NextRequest) {
           confirmed_at: topup.confirmed_at || new Date().toISOString(),
         },
       });
-      return NextResponse.json({ success: true, message: 'Already confirmed' });
+      return NextResponse.json({
+        success: true,
+        message: 'Already confirmed',
+        connectionCount: alreadyConfirmedCount,
+      });
     }
 
     // Update wallet balance
@@ -202,6 +239,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Broadcast success event via SSE
+    console.log('Broadcasting SSE event for tx_ref:', topup.tx_ref, {
+      status: 'confirmed',
+      amount: topup.amount,
+      confirmed_at: confirmedAt,
+    });
+
+    const connectionCount = broadcastManager.getConnectionCount(topup.tx_ref);
+    console.log(
+      'Active SSE connections for tx_ref:',
+      topup.tx_ref,
+      '=',
+      connectionCount
+    );
+
     broadcastManager.broadcast(topup.tx_ref, {
       type: 'status-update',
       data: {
@@ -212,13 +263,24 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('=== WEBHOOK PROCESSING COMPLETED ===');
+    console.log('Result:', {
+      success: true,
+      tx_ref: topup.tx_ref,
+      connectionCount,
+      ledgerId,
+    });
+
     return NextResponse.json({
       success: true,
       message: 'Payment confirmed successfully',
       ledgerId,
+      connectionCount,
     });
   } catch (error) {
-    console.error('Error processing PayOS webhook:', error);
+    console.error('=== WEBHOOK PROCESSING ERROR ===');
+    console.error('Error:', error);
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

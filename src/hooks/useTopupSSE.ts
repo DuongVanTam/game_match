@@ -74,6 +74,7 @@ export function useTopupSSE({
 
       eventSource.addEventListener('status-update', (event) => {
         const data = JSON.parse(event.data);
+        console.log('SSE status-update received:', data);
         const newStatus: TopupStatus = {
           tx_ref: data.tx_ref,
           status: data.status,
