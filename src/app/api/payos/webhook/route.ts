@@ -33,11 +33,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.log('Body:', body);
 
     // Verify webhook data using PayOS SDK
+    // SDK verify() returns Promise<WebhookData> - the data object from {code, desc, success, data: {...}, signature}
     let verifiedData;
     try {
-      verifiedData = payosService.verifyWebhookData(body);
+      verifiedData = await payosService.verifyWebhookData(body);
     } catch (error) {
       console.error('Webhook verification failed:', error);
       return NextResponse.json(
@@ -51,18 +53,25 @@ export async function POST(request: NextRequest) {
 
     // Extract data from verified webhook
     // PayOS SDK verify returns WebhookData directly: { orderCode, amount, description, code, ... }
+    // This is the data object from the webhook payload
     const webhookData = verifiedData;
 
     // Extract orderCode and status from verified webhook data
     const orderCode = webhookData.orderCode;
-    const status = webhookData.code; // PayOS uses 'code' field for status (e.g., 'PAID', 'CANCELLED')
+    // PayOS uses 'code' field in data object for status: "00" = success/PAID
+    const dataCode = webhookData.code; // This is "00" for success
+    const status = dataCode === '00' ? 'PAID' : dataCode || 'UNKNOWN';
     const description = webhookData.description || '';
+    const amount = webhookData.amount || 0;
 
     console.log('Webhook verified successfully:', {
       orderCode,
+      dataCode,
       status,
       description,
-      amount: webhookData.amount,
+      amount,
+      reference: webhookData.reference,
+      accountNumber: webhookData.accountNumber,
     });
 
     const client = createServerClient();

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Verify webhook data using PayOS SDK
     let verifiedData;
     try {
-      verifiedData = payosService.verifyWebhookData(body);
+      verifiedData = await payosService.verifyWebhookData(body);
     } catch (error) {
       console.error('Webhook verification failed:', error);
       return NextResponse.json(
@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
 
     // Extract orderCode
     const orderCode = verifiedData.orderCode;
-    const status = verifiedData.code;
+    const dataCode = verifiedData.code; // This is "00" for success
+    const status = dataCode === '00' ? 'PAID' : dataCode || 'UNKNOWN';
 
     const client = createServerClient();
 

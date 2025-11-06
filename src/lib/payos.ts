@@ -262,7 +262,7 @@ export class PayOSService {
    * @param webhookData - The webhook data to verify
    * @returns Verified webhook data (as returned by SDK) or throws error if invalid
    */
-  public verifyWebhookData(webhookData: unknown): {
+  public async verifyWebhookData(webhookData: unknown): Promise<{
     orderCode: number;
     amount: number;
     description: string;
@@ -280,7 +280,7 @@ export class PayOSService {
     virtualAccountName: string | null;
     virtualAccountNumber: string | null;
     [key: string]: unknown;
-  } {
+  }> {
     if (!this.isAvailable() || !this.payOS) {
       throw new Error(
         'PayOS client not initialized. Please check environment variables.'
@@ -289,11 +289,13 @@ export class PayOSService {
 
     try {
       // PayOS SDK verify method validates the webhook data
-      // It returns WebhookData which contains orderCode, amount, code (status), etc.
+      // It returns Promise<WebhookData> which contains orderCode, amount, code (status), etc.
+      // WebhookData is the data object inside {code, desc, success, data: WebhookData, signature}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const verifiedData = this.payOS.webhooks.verify(webhookData as any);
+      const verifiedData = await this.payOS.webhooks.verify(webhookData as any);
+      console.log('Verified data:', JSON.stringify(verifiedData, null, 2));
 
-      // Return the verified data directly from SDK
+      // Return the verified data directly from SDK (this is the WebhookData object)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return verifiedData as any;
     } catch (error) {
