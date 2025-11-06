@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
 import { payosService } from '@/lib/payos';
-import { broadcastManager } from '@/lib/broadcast';
 
 export async function POST(request: NextRequest) {
   // Log webhook received
@@ -122,16 +121,6 @@ export async function POST(request: NextRequest) {
               payment_data: { webhook_data: verifiedData } as never,
             })
             .eq('id', topup.id);
-
-          // Broadcast failure event via SSE
-          broadcastManager.broadcast(topup.tx_ref, {
-            type: 'status-update',
-            data: {
-              tx_ref: topup.tx_ref,
-              status: 'failed',
-              amount: topup.amount,
-            },
-          });
         }
       }
 
@@ -153,34 +142,10 @@ export async function POST(request: NextRequest) {
 
     // Check if already confirmed
     if (topup.status === 'confirmed') {
-      // Still broadcast event in case client is waiting
-      console.log(
-        'Topup already confirmed, broadcasting event for tx_ref:',
-        topup.tx_ref
-      );
-      const alreadyConfirmedCount = broadcastManager.getConnectionCount(
-        topup.tx_ref
-      );
-      console.log(
-        'Active SSE connections for already-confirmed tx_ref:',
-        topup.tx_ref,
-        '=',
-        alreadyConfirmedCount
-      );
-
-      broadcastManager.broadcast(topup.tx_ref, {
-        type: 'status-update',
-        data: {
-          tx_ref: topup.tx_ref,
-          status: 'confirmed',
-          amount: topup.amount,
-          confirmed_at: topup.confirmed_at || new Date().toISOString(),
-        },
-      });
+      console.log('Topup already confirmed for tx_ref:', topup.tx_ref);
       return NextResponse.json({
         success: true,
         message: 'Already confirmed',
-        connectionCount: alreadyConfirmedCount,
       });
     }
 
@@ -205,14 +170,6 @@ export async function POST(request: NextRequest) {
 
     if (walletError) {
       console.error('Error updating wallet balance:', walletError);
-      // Broadcast error event
-      broadcastManager.broadcast(topup.tx_ref, {
-        type: 'error',
-        data: {
-          tx_ref: topup.tx_ref,
-          error: 'Failed to update wallet balance',
-        },
-      });
       return NextResponse.json(
         { error: 'Failed to update wallet balance' },
         { status: 500 }
@@ -237,50 +194,19 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Error updating topup status:', updateError);
-      // Broadcast error event
-      broadcastManager.broadcast(topup.tx_ref, {
-        type: 'error',
-        data: {
-          tx_ref: topup.tx_ref,
-          error: 'Failed to update topup status',
-        },
-      });
       return NextResponse.json(
         { error: 'Failed to update topup status' },
         { status: 500 }
       );
     }
 
-    // Broadcast success event via SSE
-    console.log('Broadcasting SSE event for tx_ref:', topup.tx_ref, {
-      status: 'confirmed',
-      amount: topup.amount,
-      confirmed_at: confirmedAt,
-    });
-
-    const connectionCount = broadcastManager.getConnectionCount(topup.tx_ref);
-    console.log(
-      'Active SSE connections for tx_ref:',
-      topup.tx_ref,
-      '=',
-      connectionCount
-    );
-
-    broadcastManager.broadcast(topup.tx_ref, {
-      type: 'status-update',
-      data: {
-        tx_ref: topup.tx_ref,
-        status: 'confirmed',
-        amount: topup.amount,
-        confirmed_at: confirmedAt,
-      },
-    });
-
     console.log('=== WEBHOOK PROCESSING COMPLETED ===');
     console.log('Result:', {
       success: true,
       tx_ref: topup.tx_ref,
-      connectionCount,
+      status: 'confirmed',
+      amount: topup.amount,
+      confirmed_at: confirmedAt,
       ledgerId,
     });
 
@@ -288,7 +214,6 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Payment confirmed successfully',
       ledgerId,
-      connectionCount,
     });
   } catch (error) {
     console.error('=== WEBHOOK PROCESSING ERROR ===');

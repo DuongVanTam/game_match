@@ -31,6 +31,7 @@ export function useTopupSSE({
   const reconnectAttempts = useRef(0);
   const connectFnRef = useRef<(() => void) | null>(null);
   const connectionStartTimeRef = useRef<number | null>(null);
+  const statusRef = useRef<TopupStatus | null>(null); // Keep current status in ref for use in error handler
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000; // 3 seconds
   const connectionTimeout = 10000; // 10 seconds to establish connection
@@ -64,12 +65,21 @@ export function useTopupSSE({
         setError(null);
         reconnectAttempts.current = 0;
         connectionStartTimeRef.current = null;
+        // Reset status ref when new connection opens
+        if (!statusRef.current) {
+          statusRef.current = { tx_ref: txRef, status: 'pending' };
+        }
         console.log('SSE connection opened for tx_ref:', txRef);
       };
 
       eventSource.addEventListener('connected', (event) => {
         const data = JSON.parse(event.data);
-        setStatus({ tx_ref: data.tx_ref, status: 'pending' });
+        const pendingStatus = {
+          tx_ref: data.tx_ref,
+          status: 'pending' as const,
+        };
+        setStatus(pendingStatus);
+        statusRef.current = pendingStatus;
       });
 
       eventSource.addEventListener('status-update', (event) => {
@@ -82,7 +92,25 @@ export function useTopupSSE({
           confirmed_at: data.confirmed_at,
         };
         setStatus(newStatus);
+        statusRef.current = newStatus; // Update ref for use in error handler
         onStatusUpdate?.(newStatus);
+
+        // Disconnect when status is final (confirmed or failed)
+        // This prevents unnecessary reconnections
+        if (data.status === 'confirmed' || data.status === 'failed') {
+          console.log(
+            'Final status received, closing SSE connection:',
+            data.status
+          );
+          // Close connection after a short delay to ensure message is processed
+          setTimeout(() => {
+            if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+              eventSourceRef.current = null;
+            }
+            setIsConnected(false);
+          }, 1000);
+        }
       });
 
       eventSource.addEventListener('error', (event: MessageEvent) => {
@@ -105,6 +133,20 @@ export function useTopupSSE({
       eventSource.onerror = () => {
         setIsConnected(false);
 
+        // Don't reconnect if we already have a final status
+        const currentStatus = statusRef.current?.status;
+        if (currentStatus === 'confirmed' || currentStatus === 'failed') {
+          console.log(
+            'Final status already received, not reconnecting:',
+            currentStatus
+          );
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          return;
+        }
+
         // Check if connection state indicates a failed connection
         // EventSource.readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
         const now = Date.now();
@@ -125,6 +167,14 @@ export function useTopupSSE({
             if (reconnectAttempts.current < maxReconnectAttempts) {
               reconnectAttempts.current += 1;
               reconnectTimeoutRef.current = setTimeout(() => {
+                // Check status again before reconnecting
+                if (
+                  statusRef.current?.status === 'confirmed' ||
+                  statusRef.current?.status === 'failed'
+                ) {
+                  console.log('Status is final, skipping reconnect');
+                  return;
+                }
                 // Use the ref to call connect function (will be updated after connect is defined)
                 if (connectFnRef.current) {
                   connectFnRef.current();
@@ -143,6 +193,14 @@ export function useTopupSSE({
             if (reconnectAttempts.current < maxReconnectAttempts) {
               reconnectAttempts.current += 1;
               reconnectTimeoutRef.current = setTimeout(() => {
+                // Check status again before reconnecting
+                if (
+                  statusRef.current?.status === 'confirmed' ||
+                  statusRef.current?.status === 'failed'
+                ) {
+                  console.log('Status is final, skipping reconnect');
+                  return;
+                }
                 if (connectFnRef.current) {
                   connectFnRef.current();
                 }
@@ -186,6 +244,7 @@ export function useTopupSSE({
     setIsConnected(false);
     reconnectAttempts.current = 0;
     connectionStartTimeRef.current = null;
+    // Don't reset statusRef here - keep it for final status checks
   }, []);
 
   // Update connect function ref in effect
