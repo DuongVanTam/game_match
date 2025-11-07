@@ -24,8 +24,8 @@ export function Navigation() {
               <Image
                 src="/logo.png"
                 alt="TFT Match"
-                width={32}
-                height={32}
+                width={38}
+                height={38}
                 priority
               />
               <span className="text-xl font-bold text-gray-900">TFT Match</span>

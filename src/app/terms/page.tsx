@@ -257,10 +257,10 @@ export default function TermsOfServicePage() {
             </p>
             <div className="space-y-2">
               <p className="text-sm">
-                <strong>Email:</strong> support@tftmatch.com
+                <strong>Email:</strong> tftsupp06t@gmail.com
               </p>
               <p className="text-sm">
-                <strong>Điện thoại:</strong> +84 123 456 789
+                <strong>Điện thoại:</strong> +84 345842088
               </p>
               <p className="text-sm">
                 <strong>Địa chỉ:</strong> Hà Nội, Việt Nam

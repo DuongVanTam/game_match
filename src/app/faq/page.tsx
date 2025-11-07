@@ -96,7 +96,7 @@ export default function FAQPage() {
         {
           question: 'Làm sao để báo cáo gian lận?',
           answer:
-            'Nếu bạn phát hiện gian lận hoặc hoạt động bất thường, hãy liên hệ với chúng tôi qua email support@tftmatch.com hoặc hotline. Chúng tôi sẽ điều tra và xử lý nghiêm.',
+            'Nếu bạn phát hiện gian lận hoặc hoạt động bất thường, hãy liên hệ với chúng tôi qua email tftsupp06t@gmail.com hoặc hotline. Chúng tôi sẽ điều tra và xử lý nghiêm.',
         },
       ],
     },
@@ -106,7 +106,7 @@ export default function FAQPage() {
         {
           question: 'Làm sao để liên hệ hỗ trợ?',
           answer:
-            'Bạn có thể liên hệ với chúng tôi qua email support@tftmatch.com, hotline +84 123 456 789, hoặc chat trực tiếp trên website. Chúng tôi hỗ trợ 24/7.',
+            'Bạn có thể liên hệ với chúng tôi qua email tftsupp06t@gmail.com, hotline +84 345842088, hoặc chat trực tiếp trên website. Chúng tôi hỗ trợ 24/7.',
         },
         {
           question: 'Tôi có thể hủy tài khoản không?',
@@ -176,12 +176,12 @@ export default function FAQPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <h3 className="font-semibold text-blue-900 mb-2">Email</h3>
-                <p className="text-sm text-blue-700">support@tftmatch.com</p>
+                <p className="text-sm text-blue-700">tftsupp06t@gmail.com</p>
               </div>
 
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <h3 className="font-semibold text-green-900 mb-2">Hotline</h3>
-                <p className="text-sm text-green-700">+84 123 456 789</p>
+                <p className="text-sm text-green-700">+84 345842088</p>
               </div>
 
               <div className="text-center p-4 bg-purple-50 rounded-lg">

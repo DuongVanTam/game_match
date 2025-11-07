@@ -110,7 +110,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold">Email</h3>
                     <p className="text-sm text-gray-600">
-                      support@tftmatch.com
+                      tftsupp06t@gmail.com
                     </p>
                     <p className="text-xs text-gray-500">
                       Phản hồi trong 24 giờ
@@ -124,7 +124,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold">Hotline</h3>
-                    <p className="text-sm text-gray-600">+84 123 456 789</p>
+                    <p className="text-sm text-gray-600">+84 345842088</p>
                     <p className="text-xs text-gray-500">
                       Thứ 2 - Chủ nhật: 8:00 - 22:00
                     </p>

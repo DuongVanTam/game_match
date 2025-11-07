@@ -15,6 +15,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get wallet balance
+    const { data: wallet, error: walletError } = await client
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single();
+
     // Get user's ledger entries
     const { data: transactions, error: ledgerError } = await client
       .from('ledger')
@@ -30,7 +37,11 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(transactions || []);
+    // Return transactions with balance
+    return NextResponse.json({
+      transactions: transactions || [],
+      balance: wallet?.balance || 0,
+    });
   } catch (error) {
     console.error('Error fetching transactions:', error);
     return NextResponse.json(

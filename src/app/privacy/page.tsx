@@ -179,7 +179,7 @@ export default function PrivacyPolicyPage() {
               <h3 className="font-semibold mb-2">Cách thực hiện quyền</h3>
               <p className="text-gray-600">
                 Để thực hiện các quyền trên, vui lòng liên hệ với chúng tôi qua
-                email support@tftmatch.com. Chúng tôi sẽ phản hồi trong vòng 30
+                email tftsupp06t@gmail.com. Chúng tôi sẽ phản hồi trong vòng 30
                 ngày.
               </p>
             </div>
@@ -285,7 +285,7 @@ export default function PrivacyPolicyPage() {
                 <strong>Email:</strong> privacy@tftmatch.com
               </p>
               <p className="text-sm">
-                <strong>Điện thoại:</strong> +84 123 456 789
+                <strong>Điện thoại:</strong> +84 345842088
               </p>
               <p className="text-sm">
                 <strong>Địa chỉ:</strong> Hà Nội, Việt Nam

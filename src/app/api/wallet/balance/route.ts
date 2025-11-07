@@ -40,8 +40,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
     }
 
+    // Get recent transactions (last 5)
+    const { data: transactions, error: transactionsError } = await client
+      .from('ledger')
+      .select('id, transaction_type, amount, description, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    // Don't fail if transactions can't be fetched, just return empty array
+    const recentTransactions = transactionsError ? [] : transactions || [];
+
     return NextResponse.json({
       balance: wallet.balance,
+      transactions: recentTransactions,
       user: {
         full_name: userProfile.full_name,
         email: userProfile.email,

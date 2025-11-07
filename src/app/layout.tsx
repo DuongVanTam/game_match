@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'TFT Match - Skill-Based Tournaments',
   description: 'Compete in Teamfight Tactics tournaments with real rewards',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

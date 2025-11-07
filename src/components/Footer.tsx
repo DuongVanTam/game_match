@@ -14,10 +14,10 @@ export function Footer() {
             </p>
             <div className="space-y-2 text-sm text-gray-400">
               <p>
-                <strong>Email:</strong> support@tftmatch.com
+                <strong>Email:</strong> tftsupp06t@gmail.com
               </p>
               <p>
-                <strong>Hotline:</strong> +84 123 456 789
+                <strong>Hotline:</strong> +84 345842088
               </p>
               <p>
                 <strong>Địa chỉ:</strong> Hà Nội, Việt Nam

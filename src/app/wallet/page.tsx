@@ -101,6 +101,25 @@ export default function WalletPage() {
     }).format(amount);
   };
 
+  const getTransactionLabel = (type: string) => {
+    switch (type) {
+      case 'topup':
+        return 'Nạp tiền';
+      case 'join_match':
+        return 'Tham gia trận đấu';
+      case 'leave_match':
+        return 'Rời trận đấu';
+      case 'win_prize':
+        return 'Thắng giải thưởng';
+      case 'service_fee':
+        return 'Phí dịch vụ';
+      case 'withdraw':
+        return 'Rút tiền';
+      default:
+        return type;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -269,7 +288,8 @@ export default function WalletPage() {
                       >
                         <div>
                           <p className="font-semibold">
-                            {transaction.description}
+                            {transaction.description ||
+                              getTransactionLabel(transaction.transaction_type)}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleString(

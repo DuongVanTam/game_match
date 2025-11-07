@@ -17,8 +17,15 @@ export default function Home() {
       <Navigation />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 to-purple-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-20">
+      <section
+        className="relative text-white bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'url(/YasuoBG.avif)',
+        }}
+      >
+        {/* Overlay for text readability */}
+        <div className="absolute inset-0 bg-black/50"></div>
+        <div className="relative max-w-7xl mx-auto px-4 py-20">
           <div className="text-center">
             <h1 className="text-5xl font-bold mb-6">Thi đấu kỹ năng TFT</h1>
             <p className="text-xl mb-8 max-w-3xl mx-auto">
@@ -32,7 +39,7 @@ export default function Home() {
               <Button
                 size="lg"
                 variant="outline"
-                className="text-white border-white hover:bg-white hover:text-blue-600"
+                className="text-white border-white bg-blue hover:bg-white hover:text-blue-600"
                 asChild
               >
                 <Link href="/how-it-works">Tìm hiểu thêm</Link>
@@ -171,13 +178,18 @@ export default function Home() {
             thực tế
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg" asChild>
+            <Button
+              size="lg"
+              variant="outline"
+              className="text-white border-white bg-blue hover:bg-white hover:text-gray-900"
+              asChild
+            >
               <Link href="/auth/register">Đăng ký miễn phí</Link>
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="text-white border-white hover:bg-white hover:text-gray-900"
+              className="text-white border-white bg-blue hover:bg-white hover:text-gray-900"
               asChild
             >
               <Link href="/matches">Xem giải đấu</Link>

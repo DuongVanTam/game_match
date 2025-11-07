@@ -186,8 +186,8 @@ describe('Phase 8 - Legal UX & Documentation', () => {
         const fullPath = path.join(process.cwd(), page);
         const content = fs.readFileSync(fullPath, 'utf8');
 
-        expect(content).toMatch(/support@tftmatch\.com/i);
-        expect(content).toMatch(/\+84 123 456 789/i);
+        expect(content).toMatch(/tftsupp06t@gmail\.com/i);
+        expect(content).toMatch(/\+84 345842088/i);
       });
     });
   });
