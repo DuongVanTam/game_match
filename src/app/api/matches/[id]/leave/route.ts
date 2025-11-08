@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createApiAuthClient, createServerClient } from '@/lib/supabase-server';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const client = createServerClient();
+    const authClient = createApiAuthClient(request);
+    const serviceClient = createServerClient();
     const { id: matchId } = await params;
 
     // Get current user from auth
     const {
       data: { user },
       error: authError,
-    } = await client.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get match details
-    const { data: match, error: matchError } = await client
+    const { data: match, error: matchError } = await serviceClient
       .from('matches')
       .select('*')
       .eq('id', matchId)
@@ -39,7 +40,7 @@ export async function POST(
     }
 
     // Check if user has joined this match
-    const { data: matchPlayer, error: playerError } = await client
+    const { data: matchPlayer, error: playerError } = await serviceClient
       .from('match_players')
       .select('*')
       .eq('match_id', matchId)
@@ -55,9 +56,8 @@ export async function POST(
     }
 
     // Refund entry fee
-    const { data: ledgerId, error: walletUpdateError } = await client.rpc(
-      'update_wallet_balance',
-      {
+    const { data: ledgerId, error: walletUpdateError } =
+      await serviceClient.rpc('update_wallet_balance', {
         p_user_id: user.id,
         p_amount: match.entry_fee,
         p_transaction_type: 'leave_match',
@@ -69,8 +69,7 @@ export async function POST(
           entry_fee: match.entry_fee,
           refund: true,
         },
-      }
-    );
+      });
 
     if (walletUpdateError) {
       console.error('Error refunding entry fee:', walletUpdateError);
@@ -81,7 +80,7 @@ export async function POST(
     }
 
     // Leave match
-    const { error: leaveError } = await client
+    const { error: leaveError } = await serviceClient
       .from('match_players')
       .update({
         status: 'left',
@@ -97,10 +96,17 @@ export async function POST(
       );
     }
 
+    const { data: remainingPlayers } = await serviceClient
+      .from('match_players')
+      .select('id')
+      .eq('match_id', matchId)
+      .eq('status', 'active');
+
     return NextResponse.json({
       success: true,
       message: 'Successfully left match',
       ledgerId,
+      current_players: remainingPlayers?.length || 0,
     });
   } catch (error) {
     console.error('Error in POST /api/matches/[id]/leave:', error);

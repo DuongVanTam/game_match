@@ -33,14 +33,14 @@ interface Match {
   created_by: string;
   winner_id?: string;
   proof_image_url?: string;
-  created_by_user: {
-    full_name: string;
-    avatar_url?: string;
-  };
+  created_by_user?: {
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
   winner_user?: {
-    full_name: string;
-    avatar_url?: string;
-  };
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 interface User {
@@ -255,11 +255,15 @@ export default function AdminDashboard() {
                   {matches.slice(0, 5).map((match) => (
                     <div key={match.id} className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarImage src={match.created_by_user.avatar_url} />
+                        <AvatarImage
+                          src={match.created_by_user?.avatar_url || undefined}
+                        />
                         <AvatarFallback>
-                          {match.created_by_user.full_name
-                            .charAt(0)
-                            .toUpperCase()}
+                          {match.created_by_user?.full_name
+                            ? match.created_by_user.full_name
+                                .charAt(0)
+                                .toUpperCase()
+                            : 'N'}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
@@ -340,7 +344,8 @@ export default function AdminDashboard() {
                             {match.max_players}
                           </span>
                           <span>
-                            Tạo bởi: {match.created_by_user.full_name}
+                            Tạo bởi:{' '}
+                            {match.created_by_user?.full_name || 'Người chơi'}
                           </span>
                         </div>
                       </div>

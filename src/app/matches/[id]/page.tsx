@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft,
@@ -22,12 +23,15 @@ import {
   UserMinus,
   Camera,
   CheckCircle,
+  XCircle,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { ImageUpload } from '@/components/ImageUpload';
 import { WinnerSelection } from '@/components/WinnerSelection';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
+import { useAuth } from '@/lib/auth';
 
 interface Match {
   id: string;
@@ -40,29 +44,31 @@ interface Match {
   created_at: string;
   created_by: string;
   proof_image_url?: string | null;
-  created_by_user: {
-    full_name: string;
-    avatar_url?: string;
-  };
+  created_by_user?: {
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
   winner_user?: {
-    full_name: string;
-    avatar_url?: string;
-  };
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
   match_players: Array<{
     id: string;
     user_id: string;
     status: string | null;
     joined_at: string | null;
-    user: {
-      full_name: string;
-      avatar_url?: string;
-    };
+    user?: {
+      full_name: string | null;
+      avatar_url?: string | null;
+    } | null;
   }>;
 }
 
 export default function MatchDetailPage() {
   const params = useParams();
   const matchId = params.id as string;
+  const { user } = useAuth();
+  const currentUserId = user?.id || null;
 
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,34 +77,48 @@ export default function MatchDetailPage() {
   const [showSettlement, setShowSettlement] = useState(false);
   const [showWinnerSelection, setShowWinnerSelection] = useState(false);
   const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+
+  const showNotification = (
+    type: 'success' | 'error' | 'info',
+    message: string
+  ) => {
+    setNotification({ type, message });
+  };
+
+  const clearNotification = () => setNotification(null);
 
   const fetchMatch = useCallback(async () => {
     try {
-      const response = await fetch(`/api/matches/${matchId}`);
+      const response = await fetch(`/api/matches/${matchId}`, {
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setMatch(data);
         // Check if current user has joined this match
-        setUserJoined(
-          data.match_players.some(
-            (player: { status: string | null }) => player.status === 'active'
-          )
-        );
-
-        // Get current user ID (you might want to get this from auth context)
-        // For now, we'll assume it's available from the match data
-        if (data.match_players && data.match_players.length > 0) {
-          // This is a placeholder - you should get current user from auth context
-          setCurrentUserId(data.match_players[0].user_id);
+        if (currentUserId) {
+          setUserJoined(
+            data.match_players.some(
+              (player: { user_id: string; status: string | null }) =>
+                player.user_id === currentUserId && player.status === 'active'
+            )
+          );
         }
       }
     } catch (error) {
       console.error('Error fetching match:', error);
+      showNotification(
+        'error',
+        'Không thể tải thông tin trận đấu. Vui lòng thử lại sau.'
+      );
     } finally {
       setLoading(false);
     }
-  }, [matchId]);
+  }, [matchId, currentUserId]);
 
   useEffect(() => {
     if (matchId) {
@@ -107,6 +127,7 @@ export default function MatchDetailPage() {
   }, [matchId, fetchMatch]);
 
   const handleJoinMatch = async () => {
+    clearNotification();
     setActionLoading(true);
     try {
       const response = await fetch(`/api/matches/${matchId}/join`, {
@@ -114,21 +135,38 @@ export default function MatchDetailPage() {
       });
 
       if (response.ok) {
+        const result = await response.json();
         setUserJoined(true);
+        setMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_players:
+                  result.current_players ?? prev.current_players + 1,
+              }
+            : prev
+        );
+        showNotification('success', 'Tham gia trận đấu thành công!');
         fetchMatch(); // Refresh match data
       } else {
         const error = await response.json();
-        alert(`Lỗi: ${error.message}`);
+        const message =
+          error.message || error.error || 'Không thể tham gia trận đấu.';
+        showNotification('error', message);
       }
     } catch (error) {
       console.error('Error joining match:', error);
-      alert('Có lỗi xảy ra khi tham gia trận đấu');
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi tham gia trận đấu. Vui lòng thử lại.'
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleLeaveMatch = async () => {
+    clearNotification();
     setActionLoading(true);
     try {
       const response = await fetch(`/api/matches/${matchId}/leave`, {
@@ -136,15 +174,37 @@ export default function MatchDetailPage() {
       });
 
       if (response.ok) {
+        const result = await response.json();
         setUserJoined(false);
+        setMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                current_players:
+                  result.current_players ??
+                  Math.max(prev.current_players - 1, 0),
+                match_players: currentUserId
+                  ? prev.match_players.filter(
+                      (player) => player.user_id !== currentUserId
+                    )
+                  : prev.match_players,
+              }
+            : prev
+        );
+        showNotification('success', 'Bạn đã rời trận đấu.');
         fetchMatch(); // Refresh match data
       } else {
         const error = await response.json();
-        alert(`Lỗi: ${error.message}`);
+        const message =
+          error.message || error.error || 'Không thể rời trận đấu.';
+        showNotification('error', message);
       }
     } catch (error) {
       console.error('Error leaving match:', error);
-      alert('Có lỗi xảy ra khi rời trận đấu');
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi rời trận đấu. Vui lòng thử lại.'
+      );
     } finally {
       setActionLoading(false);
     }
@@ -162,8 +222,12 @@ export default function MatchDetailPage() {
   };
 
   const handleSelectWinner = async (winnerId: string) => {
+    clearNotification();
     if (!proofImageUrl) {
-      alert('Vui lòng upload hình ảnh bằng chứng trước khi chọn người thắng');
+      showNotification(
+        'error',
+        'Vui lòng upload hình ảnh bằng chứng trước khi chọn người thắng.'
+      );
       return;
     }
 
@@ -182,18 +246,23 @@ export default function MatchDetailPage() {
 
       if (response.ok) {
         await response.json(); // Consume the response
-        alert('Trận đấu đã được hoàn tất thành công!');
+        showNotification('success', 'Trận đấu đã được hoàn tất thành công!');
         fetchMatch(); // Refresh match data
         setShowSettlement(false);
         setShowWinnerSelection(false);
         setProofImageUrl(null);
       } else {
         const error = await response.json();
-        alert(`Lỗi: ${error.message}`);
+        const message =
+          error.message || error.error || 'Không thể hoàn tất trận đấu.';
+        showNotification('error', message);
       }
     } catch (error) {
       console.error('Error settling match:', error);
-      alert('Có lỗi xảy ra khi hoàn tất trận đấu');
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi hoàn tất trận đấu. Vui lòng thử lại.'
+      );
     } finally {
       setActionLoading(false);
     }
@@ -201,11 +270,53 @@ export default function MatchDetailPage() {
 
   const handleProofUpload = (url: string) => {
     setProofImageUrl(url);
+    showNotification('success', 'Đã tải lên hình ảnh bằng chứng.');
   };
 
   const handleProofUploadError = (error: string) => {
+    clearNotification();
     console.error('Proof upload error:', error);
-    alert(`Lỗi upload hình ảnh: ${error}`);
+    showNotification('error', `Lỗi upload hình ảnh: ${error}`);
+  };
+
+  const handleCancelMatch = async () => {
+    clearNotification();
+    if (
+      !confirm(
+        'Bạn có chắc chắn muốn hủy trận đấu này? Tất cả người chơi sẽ được hoàn phí tham gia.'
+      )
+    ) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/matches/${matchId}/cancel`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        showNotification(
+          'success',
+          `Trận đấu đã được hủy thành công. Đã hoàn phí cho ${result.refundedPlayers} người chơi.`
+        );
+        fetchMatch(); // Refresh match data
+      } else {
+        const error = await response.json();
+        const message =
+          error.message || error.error || 'Không thể hủy trận đấu.';
+        showNotification('error', message);
+      }
+    } catch (error) {
+      console.error('Error cancelling match:', error);
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi hủy trận đấu. Vui lòng thử lại.'
+      );
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -314,6 +425,40 @@ export default function MatchDetailPage() {
           </div>
         </div>
 
+        {notification && (
+          <Alert
+            variant={notification.type === 'error' ? 'destructive' : 'default'}
+            className={`mb-6 ${
+              notification.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : notification.type === 'info'
+                  ? 'border-blue-200 bg-blue-50 text-blue-800'
+                  : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <AlertTitle>
+                  {notification.type === 'error'
+                    ? 'Có lỗi xảy ra'
+                    : notification.type === 'success'
+                      ? 'Thành công'
+                      : 'Thông báo'}
+                </AlertTitle>
+                <AlertDescription>{notification.message}</AlertDescription>
+              </div>
+              <button
+                type="button"
+                onClick={clearNotification}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Đóng thông báo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Alert>
+        )}
+
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Match Info */}
@@ -350,7 +495,7 @@ export default function MatchDetailPage() {
                         Người tạo:
                       </span>
                       <span className="font-semibold">
-                        {match.created_by_user.full_name}
+                        {match.created_by_user?.full_name || 'Người chơi'}
                       </span>
                     </div>
 
@@ -398,7 +543,7 @@ export default function MatchDetailPage() {
                           Người thắng:
                         </span>
                         <span className="font-bold text-yellow-600">
-                          {match.winner_user.full_name}
+                          {match.winner_user.full_name || 'Đang cập nhật'}
                         </span>
                       </div>
                     )}
@@ -427,14 +572,18 @@ export default function MatchDetailPage() {
                           className="flex items-center gap-3 p-3 border rounded-lg"
                         >
                           <Avatar>
-                            <AvatarImage src={player.user.avatar_url} />
+                            <AvatarImage
+                              src={player.user?.avatar_url || undefined}
+                            />
                             <AvatarFallback>
-                              {player.user.full_name.charAt(0).toUpperCase()}
+                              {player.user?.full_name
+                                ? player.user.full_name.charAt(0).toUpperCase()
+                                : 'N'}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
                             <p className="font-semibold">
-                              {player.user.full_name}
+                              {player.user?.full_name || 'Người chơi'}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               Tham gia:{' '}
@@ -538,6 +687,28 @@ export default function MatchDetailPage() {
                           )}
                         </Button>
                       )}
+
+                      {/* Cancel button for match creator */}
+                      {match.created_by === currentUserId && (
+                        <Button
+                          onClick={handleCancelMatch}
+                          disabled={actionLoading}
+                          variant="destructive"
+                          className="w-full"
+                        >
+                          {actionLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Đang hủy...
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Hủy trận đấu
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </>
                   )}
 
@@ -555,15 +726,37 @@ export default function MatchDetailPage() {
 
                       {/* Settlement button for match creator */}
                       {match.created_by === currentUserId && (
-                        <Button
-                          onClick={handleStartSettlement}
-                          disabled={actionLoading}
-                          className="w-full"
-                          variant="outline"
-                        >
-                          <Camera className="h-4 w-4 mr-2" />
-                          Hoàn tất trận đấu
-                        </Button>
+                        <>
+                          <Button
+                            onClick={handleStartSettlement}
+                            disabled={actionLoading}
+                            className="w-full"
+                            variant="outline"
+                          >
+                            <Camera className="h-4 w-4 mr-2" />
+                            Hoàn tất trận đấu
+                          </Button>
+
+                          {/* Cancel button for match creator */}
+                          <Button
+                            onClick={handleCancelMatch}
+                            disabled={actionLoading}
+                            variant="destructive"
+                            className="w-full"
+                          >
+                            {actionLoading ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Đang hủy...
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Hủy trận đấu
+                              </>
+                            )}
+                          </Button>
+                        </>
                       )}
                     </div>
                   )}
@@ -576,7 +769,8 @@ export default function MatchDetailPage() {
                       </p>
                       {match.winner_user && (
                         <p className="text-sm text-muted-foreground">
-                          Người thắng: {match.winner_user.full_name}
+                          Người thắng:{' '}
+                          {match.winner_user.full_name || 'Đang cập nhật'}
                         </p>
                       )}
                     </div>

@@ -1,7 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,10 +18,10 @@ interface Player {
   id: string;
   user_id: string;
   status: string | null;
-  user: {
-    full_name: string;
-    avatar_url?: string;
-  };
+  user?: {
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 interface WinnerSelectionProps {
@@ -34,7 +40,7 @@ export function WinnerSelection({
   const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  const activePlayers = players.filter(player => player.status === 'active');
+  const activePlayers = players.filter((player) => player.status === 'active');
 
   const handleWinnerSelect = (playerId: string) => {
     if (disabled || confirming) return;
@@ -43,7 +49,7 @@ export function WinnerSelection({
 
   const handleConfirmWinner = async () => {
     if (!selectedWinner || disabled || confirming) return;
-    
+
     setConfirming(true);
     try {
       await onSelectWinner(selectedWinner);
@@ -88,7 +94,8 @@ export function WinnerSelection({
             Chọn người thắng cuộc
           </CardTitle>
           <CardDescription>
-            Chọn người chơi thắng cuộc để hoàn tất trận đấu và phân phối giải thưởng
+            Chọn người chơi thắng cuộc để hoàn tất trận đấu và phân phối giải
+            thưởng
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -99,7 +106,8 @@ export function WinnerSelection({
                 <div>
                   <h4 className="font-semibold text-green-800">Giải thưởng</h4>
                   <p className="text-sm text-green-600">
-                    {activePlayers.length} người chơi × {formatCurrency(10000)} = {formatCurrency(10000 * activePlayers.length)}
+                    {activePlayers.length} người chơi × {formatCurrency(10000)}{' '}
+                    = {formatCurrency(10000 * activePlayers.length)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -119,43 +127,49 @@ export function WinnerSelection({
                 <Users className="h-4 w-4" />
                 Người chơi tham gia ({activePlayers.length})
               </h4>
-              
+
               <div className="grid gap-3">
-                {activePlayers.map((player) => (
-                  <div
-                    key={player.id}
-                    className={`
+                {activePlayers.map((player) => {
+                  const displayName = player.user?.full_name || 'Người chơi';
+                  const avatarInitial = displayName.charAt(0).toUpperCase();
+
+                  return (
+                    <div
+                      key={player.id}
+                      className={`
                       flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-all
-                      ${selectedWinner === player.user_id
-                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                        : 'border-muted hover:border-primary/50'
+                      ${
+                        selectedWinner === player.user_id
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                          : 'border-muted hover:border-primary/50'
                       }
                       ${disabled || confirming ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
-                    onClick={() => handleWinnerSelect(player.user_id)}
-                  >
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={player.user.avatar_url} />
-                      <AvatarFallback>
-                        {player.user.full_name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className="flex-1">
-                      <p className="font-semibold">{player.user.full_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Người chơi tích cực
-                      </p>
-                    </div>
-                    
-                    {selectedWinner === player.user_id && (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-primary" />
-                        <Badge variant="default">Được chọn</Badge>
+                      onClick={() => handleWinnerSelect(player.user_id)}
+                    >
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage
+                          src={player.user?.avatar_url || undefined}
+                        />
+                        <AvatarFallback>{avatarInitial}</AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1">
+                        <p className="font-semibold">{displayName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Người chơi tích cực
+                        </p>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {selectedWinner === player.user_id && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5 text-primary" />
+                          <Badge variant="default">Được chọn</Badge>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -178,7 +192,7 @@ export function WinnerSelection({
                   </>
                 )}
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={onCancel}
@@ -192,8 +206,9 @@ export function WinnerSelection({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Bạn đã chọn người thắng cuộc. Sau khi xác nhận, trận đấu sẽ được hoàn tất 
-                  và giải thưởng sẽ được chuyển vào ví của người thắng.
+                  Bạn đã chọn người thắng cuộc. Sau khi xác nhận, trận đấu sẽ
+                  được hoàn tất và giải thưởng sẽ được chuyển vào ví của người
+                  thắng.
                 </AlertDescription>
               </Alert>
             )}

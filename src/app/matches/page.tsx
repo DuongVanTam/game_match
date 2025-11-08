@@ -11,10 +11,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Users, Clock, Trophy, Gamepad2 } from 'lucide-react';
+import { Plus, Users, Clock, Trophy, Gamepad2, X } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAuth } from '@/lib/auth';
 
 interface Match {
   id: string;
@@ -26,36 +29,110 @@ interface Match {
   status: 'open' | 'ongoing' | 'completed' | 'cancelled';
   created_at: string;
   created_by: string;
-  created_by_user: {
-    full_name: string;
-    avatar_url?: string;
-  };
+  match_players?: Array<{
+    user_id: string;
+    status: string | null;
+  }> | null;
+  created_by_user?: {
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
   winner_user?: {
-    full_name: string;
-    avatar_url?: string;
-  };
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 export default function MatchesPage() {
+  const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [joiningMatchId, setJoiningMatchId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading) {
+      setCurrentUserId(user?.id ?? null);
+    }
+  }, [user, authLoading]);
 
   useEffect(() => {
     fetchMatches();
   }, []);
 
+  const showNotification = (
+    type: 'success' | 'error' | 'info',
+    message: string
+  ) => setNotification({ type, message });
+
+  const clearNotification = () => setNotification(null);
+
   const fetchMatches = async () => {
     try {
+      if (notification?.type === 'error') {
+        clearNotification();
+      }
       const response = await fetch('/api/matches');
       if (response.ok) {
         const data = await response.json();
         setMatches(data);
+      } else {
+        const error = await response.json();
+        const message =
+          error.message ||
+          error.error ||
+          'Không thể tải danh sách trận đấu. Vui lòng thử lại.';
+        showNotification('error', message);
       }
     } catch (error) {
       console.error('Error fetching matches:', error);
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi tải danh sách trận đấu. Vui lòng thử lại.'
+      );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleJoinMatch = async (matchId: string) => {
+    clearNotification();
+    setJoiningMatchId(matchId);
+    try {
+      const response = await fetch(`/api/matches/${matchId}/join`, {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        const redirectUrl = `/matches/${matchId}`;
+        router.push(redirectUrl);
+      } else {
+        const message =
+          result.message ||
+          result.error ||
+          'Không thể tham gia trận đấu. Vui lòng thử lại.';
+        if (result.error === 'Duplicate join') {
+          showNotification('error', 'Bạn đã tham gia trận đấu này rồi.');
+        } else {
+          showNotification('error', message);
+        }
+      }
+    } catch (error) {
+      console.error('Error joining match from list:', error);
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi tham gia trận đấu. Vui lòng thử lại.'
+      );
+    } finally {
+      setJoiningMatchId(null);
     }
   };
 
@@ -103,7 +180,7 @@ export default function MatchesPage() {
     }
   });
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navigation />
@@ -140,6 +217,40 @@ export default function MatchesPage() {
             </Link>
           </div>
         </div>
+
+        {notification && (
+          <Alert
+            variant={notification.type === 'error' ? 'destructive' : 'default'}
+            className={`mb-6 ${
+              notification.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : notification.type === 'info'
+                  ? 'border-blue-200 bg-blue-50 text-blue-800'
+                  : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <AlertTitle>
+                  {notification.type === 'error'
+                    ? 'Có lỗi xảy ra'
+                    : notification.type === 'success'
+                      ? 'Thành công'
+                      : 'Thông báo'}
+                </AlertTitle>
+                <AlertDescription>{notification.message}</AlertDescription>
+              </div>
+              <button
+                type="button"
+                onClick={clearNotification}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Đóng thông báo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Alert>
+        )}
 
         <Tabs
           value={activeTab}
@@ -207,13 +318,26 @@ export default function MatchesPage() {
                             {match.current_players}/{match.max_players}
                           </span>
                         </div>
+                        {currentUserId &&
+                          match.match_players?.some(
+                            (player) =>
+                              player.user_id === currentUserId &&
+                              player.status === 'active'
+                          ) && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Trạng thái của bạn:
+                              </span>
+                              <Badge>Đã tham gia</Badge>
+                            </div>
+                          )}
 
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
                             Người tạo:
                           </span>
                           <span className="font-semibold">
-                            {match.created_by_user.full_name}
+                            {match.created_by_user?.full_name || 'Người chơi'}
                           </span>
                         </div>
 
@@ -232,32 +356,72 @@ export default function MatchesPage() {
                               Người thắng:
                             </span>
                             <span className="font-semibold text-yellow-600">
-                              {match.winner_user.full_name}
+                              {match.winner_user?.full_name || 'Đang cập nhật'}
                             </span>
                           </div>
                         )}
 
                         <div className="pt-3 border-t">
-                          <Link href={`/matches/${match.id}`}>
-                            <Button
-                              className="w-full"
-                              variant={
-                                match.status === 'open' ? 'default' : 'outline'
-                              }
-                              disabled={
-                                match.status === 'ongoing' ||
-                                match.status === 'completed'
-                              }
-                            >
-                              {match.status === 'open'
-                                ? 'Tham gia'
-                                : match.status === 'ongoing'
+                          {match.status === 'open' ? (
+                            <div className="flex flex-col gap-2">
+                              {currentUserId &&
+                              match.match_players?.some(
+                                (player) =>
+                                  player.user_id === currentUserId &&
+                                  player.status === 'active'
+                              ) ? (
+                                <Button className="w-full" disabled>
+                                  Bạn đã tham gia
+                                </Button>
+                              ) : (
+                                <Button
+                                  className="w-full"
+                                  onClick={() => handleJoinMatch(match.id)}
+                                  disabled={
+                                    joiningMatchId === match.id ||
+                                    match.current_players >= match.max_players
+                                  }
+                                >
+                                  {joiningMatchId === match.id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                      Đang tham gia...
+                                    </>
+                                  ) : match.current_players >=
+                                    match.max_players ? (
+                                    'Đã đủ người'
+                                  ) : (
+                                    'Tham gia ngay'
+                                  )}
+                                </Button>
+                              )}
+                              <Link href={`/matches/${match.id}`}>
+                                <Button className="w-full" variant="outline">
+                                  Xem chi tiết
+                                </Button>
+                              </Link>
+                            </div>
+                          ) : (
+                            <Link href={`/matches/${match.id}`}>
+                              <Button
+                                className="w-full"
+                                variant={
+                                  match.status === 'completed'
+                                    ? 'outline'
+                                    : 'default'
+                                }
+                                disabled={match.status === 'cancelled'}
+                              >
+                                {match.status === 'ongoing'
                                   ? 'Đang diễn ra'
                                   : match.status === 'completed'
                                     ? 'Xem kết quả'
-                                    : 'Đã hủy'}
-                            </Button>
-                          </Link>
+                                    : match.status === 'cancelled'
+                                      ? 'Đã hủy'
+                                      : 'Chi tiết'}
+                              </Button>
+                            </Link>
+                          )}
                         </div>
                       </div>
                     </CardContent>

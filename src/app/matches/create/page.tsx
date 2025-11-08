@@ -13,13 +13,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Gamepad2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Validation schema
 const createMatchSchema = z.object({
@@ -46,6 +47,17 @@ type CreateMatchFormData = z.infer<typeof createMatchSchema>;
 export default function CreateMatchPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
+
+  const showNotification = (
+    type: 'success' | 'error' | 'info',
+    message: string
+  ) => setNotification({ type, message });
+
+  const clearNotification = () => setNotification(null);
 
   const {
     register,
@@ -63,6 +75,7 @@ export default function CreateMatchPage() {
   const prizePool = totalPool - serviceFee;
 
   const onSubmit = async (data: CreateMatchFormData) => {
+    clearNotification();
     setLoading(true);
     try {
       const response = await fetch('/api/matches', {
@@ -75,14 +88,22 @@ export default function CreateMatchPage() {
 
       if (response.ok) {
         const result = await response.json();
+        showNotification('success', 'Tạo trận đấu thành công!');
         router.push(`/matches/${result.id}`);
       } else {
         const error = await response.json();
-        alert(`Lỗi: ${error.message}`);
+        const message =
+          error.message ||
+          error.error ||
+          'Không thể tạo trận đấu. Vui lòng thử lại.';
+        showNotification('error', message);
       }
     } catch (error) {
       console.error('Error creating match:', error);
-      alert('Có lỗi xảy ra khi tạo trận đấu');
+      showNotification(
+        'error',
+        'Có lỗi xảy ra khi tạo trận đấu. Vui lòng thử lại sau.'
+      );
     } finally {
       setLoading(false);
     }
@@ -112,6 +133,40 @@ export default function CreateMatchPage() {
             Tạo trận đấu TFT và mời người chơi khác tham gia
           </p>
         </div>
+
+        {notification && (
+          <Alert
+            variant={notification.type === 'error' ? 'destructive' : 'default'}
+            className={`mb-6 ${
+              notification.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : notification.type === 'info'
+                  ? 'border-blue-200 bg-blue-50 text-blue-800'
+                  : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <AlertTitle>
+                  {notification.type === 'error'
+                    ? 'Có lỗi xảy ra'
+                    : notification.type === 'success'
+                      ? 'Thành công'
+                      : 'Thông báo'}
+                </AlertTitle>
+                <AlertDescription>{notification.message}</AlertDescription>
+              </div>
+              <button
+                type="button"
+                onClick={clearNotification}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Đóng thông báo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </Alert>
+        )}
 
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
