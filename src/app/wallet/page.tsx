@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { WithdrawForm } from '@/components/WithdrawForm';
+import type { WithdrawFormData } from '@/components/WithdrawForm';
 import { WithdrawalList } from '@/components/WithdrawalList';
 import { BalanceHistory } from '@/components/BalanceHistory';
 import { Navigation } from '@/components/Navigation';
@@ -63,14 +64,7 @@ export default function WalletPage() {
     fetchWalletData();
   }, []);
 
-  const handleWithdraw = async (withdrawData: {
-    amount: number;
-    paymentMethod: string;
-    accountNumber: string;
-    accountName: string;
-    bankName?: string;
-    note?: string;
-  }) => {
+  const handleWithdraw = async (withdrawData: WithdrawFormData) => {
     try {
       const response = await fetch('/api/payouts', {
         method: 'POST',

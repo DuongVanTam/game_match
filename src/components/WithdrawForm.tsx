@@ -53,7 +53,7 @@ const withdrawSchema = z.object({
   note: z.string().max(500, 'Ghi chú không được quá 500 ký tự').optional(),
 });
 
-type WithdrawFormData = z.infer<typeof withdrawSchema>;
+export type WithdrawFormData = z.infer<typeof withdrawSchema>;
 
 interface WithdrawFormProps {
   currentBalance: number;
