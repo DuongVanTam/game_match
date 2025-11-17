@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createApiAuthClient, createServerClient } from '@/lib/supabase-server';
+import { Database } from '@/types/database';
 
 export async function POST(
   request: NextRequest,
@@ -145,13 +146,18 @@ export async function POST(
       );
     }
 
-    const matchPlayersPayload = activeMembers.map((member) => ({
-      match_id: match.id,
-      room_player_id: member.id,
-      user_id: member.user_id,
-      status: 'active',
-      joined_at: now,
-    }));
+    type MatchPlayerInsert =
+      Database['public']['Tables']['match_players']['Insert'];
+
+    const matchPlayersPayload: MatchPlayerInsert[] = activeMembers.map(
+      (member) => ({
+        match_id: match.id,
+        room_player_id: member.id,
+        user_id: member.user_id,
+        status: 'active',
+        joined_at: now,
+      })
+    );
 
     const { error: playersInsertError } = await serviceClient
       .from('match_players')

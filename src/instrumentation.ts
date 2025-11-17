@@ -12,6 +12,19 @@
 // Track if webhook has been registered in this process
 let webhookRegisteredInProcess = false;
 
+function getBaseUrl() {
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return process.env.NEXT_PUBLIC_BASE_URL;
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return null;
+}
+
 export async function register() {
   // Only auto-register in production
   if (process.env.NODE_ENV !== 'production') {
@@ -26,56 +39,46 @@ export async function register() {
     return;
   }
 
-  try {
-    // Import PayOS service dynamically
-    const { payosService } = await import('@/lib/payos');
+  const baseUrl = getBaseUrl();
 
-    if (!payosService.isAvailable()) {
-      console.warn(
-        'PayOS service not available, skipping webhook registration'
+  if (!baseUrl) {
+    console.warn(
+      '⚠️ Unable to determine base URL for PayOS webhook registration. ' +
+        'Set NEXT_PUBLIC_BASE_URL or VERCEL_PROJECT_PRODUCTION_URL.'
+    );
+    return;
+  }
+
+  const registerUrl = `${baseUrl}/api/payos/webhook/register`;
+
+  try {
+    console.log('Auto-registering PayOS webhook via API:', registerUrl);
+
+    const response = await fetch(registerUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(
+        `Webhook registration API responded with ${response.status}: ${text}`
       );
-      return;
     }
 
-    // Get webhook URL from environment
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL || 'https://game-match.net';
-    const webhookUrl = `${baseUrl}/api/payos/webhook`;
-
-    console.log('Auto-registering PayOS webhook:', webhookUrl);
-
-    // Use the registerWebhook method directly
-    await payosService.registerWebhook(webhookUrl);
-
     webhookRegisteredInProcess = true;
-    console.log('✅ PayOS webhook auto-registered successfully:', webhookUrl);
+    console.log('✅ PayOS webhook auto-registration API call succeeded');
   } catch (error) {
-    // Log error but don't throw - webhook registration failure shouldn't crash the app
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
     console.error(
-      '❌ Failed to auto-register PayOS webhook in instrumentation:',
+      '❌ Failed to auto-register PayOS webhook via API:',
       errorMessage
     );
-
-    // Check if webhook might already be registered
-    if (
-      errorMessage.includes('already') ||
-      errorMessage.includes('exists') ||
-      errorMessage.includes('duplicate') ||
-      errorMessage.includes('invalid')
-    ) {
-      console.warn(
-        'ℹ️ Webhook may already be registered. PayOS will still send webhooks if already registered.'
-      );
-      webhookRegisteredInProcess = true; // Mark as registered to avoid retries
-    } else {
-      console.warn(
-        '⚠️ Auto-registration failed, but webhooks may still work if already registered.'
-      );
-      console.warn(
-        'You can register manually via POST /api/payos/webhook/register'
-      );
-    }
+    console.warn(
+      'You can register manually via POST /api/payos/webhook/register'
+    );
   }
 }
