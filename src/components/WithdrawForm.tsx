@@ -38,9 +38,7 @@ const withdrawSchema = z.object({
     .number()
     .min(10000, 'Số tiền tối thiểu là 10,000 VND')
     .max(10000000, 'Số tiền tối đa là 10,000,000 VND'),
-  paymentMethod: z.literal('bank_transfer', {
-    errorMap: () => ({ message: 'Chỉ hỗ trợ chuyển khoản ngân hàng' }),
-  }),
+  paymentMethod: z.literal('bank_transfer'),
   accountNumber: z
     .string()
     .min(1, 'Vui lòng nhập số tài khoản')
