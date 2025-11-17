@@ -81,7 +81,7 @@ export function WithdrawForm({
     },
   });
 
-  const selectedPaymentMethod = watch('paymentMethod');
+  const selectedPaymentMethod = watch('paymentMethod') as string;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
