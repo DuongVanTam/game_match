@@ -36,7 +36,7 @@ export function Navigation() {
                 href="/matches"
                 className="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium"
               >
-                Thi đấu kỹ năng
+                Bắt đầu thi đấu
               </Link>
               <Link
                 href="/wallet"

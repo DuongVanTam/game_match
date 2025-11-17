@@ -142,10 +142,13 @@ export interface Database {
           current_players: number;
           status: 'open' | 'ongoing' | 'completed' | 'cancelled';
           created_by: string;
+          room_id: string;
+          round_number: number;
           started_at: string | null;
           completed_at: string | null;
           winner_id: string | null;
           proof_image_url: string | null;
+          placements: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -158,10 +161,13 @@ export interface Database {
           current_players?: number;
           status?: 'open' | 'ongoing' | 'completed' | 'cancelled';
           created_by: string;
+          room_id?: string;
+          round_number?: number;
           started_at?: string | null;
           completed_at?: string | null;
           winner_id?: string | null;
           proof_image_url?: string | null;
+          placements?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -174,10 +180,13 @@ export interface Database {
           current_players?: number;
           status?: 'open' | 'ongoing' | 'completed' | 'cancelled';
           created_by?: string;
+          room_id?: string;
+          round_number?: number;
           started_at?: string | null;
           completed_at?: string | null;
           winner_id?: string | null;
           proof_image_url?: string | null;
+          placements?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -186,6 +195,12 @@ export interface Database {
             foreignKeyName: 'matches_created_by_fkey';
             columns: ['created_by'];
             referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'matches_room_id_fkey';
+            columns: ['room_id'];
+            referencedRelation: 'rooms';
             referencedColumns: ['id'];
           },
           {
@@ -204,6 +219,7 @@ export interface Database {
           joined_at: string;
           left_at: string | null;
           status: 'active' | 'left' | 'disqualified';
+          room_player_id: string | null;
         };
         Insert: {
           id?: string;
@@ -212,6 +228,7 @@ export interface Database {
           joined_at?: string;
           left_at?: string | null;
           status?: 'active' | 'left' | 'disqualified';
+          room_player_id?: string | null;
         };
         Update: {
           id?: string;
@@ -220,6 +237,7 @@ export interface Database {
           joined_at?: string;
           left_at?: string | null;
           status?: 'active' | 'left' | 'disqualified';
+          room_player_id?: string | null;
         };
         Relationships: [
           {
@@ -230,6 +248,101 @@ export interface Database {
           },
           {
             foreignKeyName: 'match_players_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'match_players_room_player_id_fkey';
+            columns: ['room_player_id'];
+            referencedRelation: 'room_players';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      rooms: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          entry_fee: number;
+          max_players: number;
+          status: 'open' | 'ongoing' | 'completed' | 'cancelled';
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          entry_fee: number;
+          max_players?: number;
+          status?: 'open' | 'ongoing' | 'completed' | 'cancelled';
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string | null;
+          entry_fee?: number;
+          max_players?: number;
+          status?: 'open' | 'ongoing' | 'completed' | 'cancelled';
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'matches_room_id_fkey';
+            columns: ['id'];
+            referencedRelation: 'matches';
+            referencedColumns: ['room_id'];
+          },
+          {
+            foreignKeyName: 'rooms_created_by_fkey';
+            columns: ['created_by'];
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      room_players: {
+        Row: {
+          id: string;
+          room_id: string;
+          user_id: string;
+          status: 'active' | 'left' | 'kicked';
+          joined_at: string;
+          left_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          user_id: string;
+          status?: 'active' | 'left' | 'kicked';
+          joined_at?: string;
+          left_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          room_id?: string;
+          user_id?: string;
+          status?: 'active' | 'left' | 'kicked';
+          joined_at?: string;
+          left_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'room_players_room_id_fkey';
+            columns: ['room_id'];
+            referencedRelation: 'rooms';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'room_players_user_id_fkey';
             columns: ['user_id'];
             referencedRelation: 'users';
             referencedColumns: ['id'];

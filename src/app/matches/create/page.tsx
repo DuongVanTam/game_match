@@ -13,14 +13,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ArrowLeft, Gamepad2, X } from 'lucide-react';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { calculatePrize } from '@/lib/match-rewards';
 
 // Validation schema
 const createMatchSchema = z.object({
@@ -38,8 +46,9 @@ const createMatchSchema = z.object({
     .max(1000000, 'Phí tham gia tối đa là 1,000,000 VNĐ'),
   max_players: z
     .number({ message: 'Số người chơi là bắt buộc' })
-    .min(2, 'Tối thiểu 2 người chơi')
-    .max(8, 'Tối đa 8 người chơi'),
+    .refine((val) => [2, 3, 4, 8].includes(val), {
+      message: 'Số người chơi chỉ có thể là 2, 3, 4 hoặc 8',
+    }),
 });
 
 type CreateMatchFormData = z.infer<typeof createMatchSchema>;
@@ -64,8 +73,12 @@ export default function CreateMatchPage() {
     handleSubmit,
     formState: { errors },
     watch,
+    control,
   } = useForm<CreateMatchFormData>({
     resolver: zodResolver(createMatchSchema),
+    defaultValues: {
+      max_players: 8,
+    },
   });
 
   const entryFee = watch('entry_fee') || 0;
@@ -73,6 +86,35 @@ export default function CreateMatchPage() {
   const totalPool = entryFee * maxPlayers;
   const serviceFee = totalPool * 0.1; // 10% service fee
   const prizePool = totalPool - serviceFee;
+
+  // Calculate prizes for each rank based on player count
+  const getPrizeBreakdown = () => {
+    if (!entryFee || entryFee < 10000) {
+      return [];
+    }
+    const breakdown: Array<{ rank: number; prize: number }> = [];
+    if (maxPlayers === 2) {
+      breakdown.push({ rank: 1, prize: calculatePrize(entryFee, 2, 1) });
+    } else if (maxPlayers === 3) {
+      breakdown.push({ rank: 1, prize: calculatePrize(entryFee, 3, 1) });
+      breakdown.push({ rank: 2, prize: calculatePrize(entryFee, 3, 2) });
+    } else if (maxPlayers === 4) {
+      breakdown.push({ rank: 1, prize: calculatePrize(entryFee, 4, 1) });
+      breakdown.push({ rank: 2, prize: calculatePrize(entryFee, 4, 2) });
+    } else if (maxPlayers === 8) {
+      breakdown.push({ rank: 1, prize: calculatePrize(entryFee, 8, 1) });
+      breakdown.push({ rank: 2, prize: calculatePrize(entryFee, 8, 2) });
+      breakdown.push({ rank: 3, prize: calculatePrize(entryFee, 8, 3) });
+      breakdown.push({ rank: 4, prize: calculatePrize(entryFee, 8, 4) });
+    }
+    return breakdown;
+  };
+
+  const prizeBreakdown = getPrizeBreakdown();
+  const totalPrizeAmount = prizeBreakdown.reduce(
+    (sum, item) => sum + item.prize,
+    0
+  );
 
   const onSubmit = async (data: CreateMatchFormData) => {
     clearNotification();
@@ -229,12 +271,27 @@ export default function CreateMatchPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="max_players">Số người chơi tối đa</Label>
-                      <Input
-                        id="max_players"
-                        type="number"
-                        placeholder="8"
-                        defaultValue={8}
-                        {...register('max_players', { valueAsNumber: true })}
+                      <Controller
+                        name="max_players"
+                        control={control}
+                        render={({ field }) => (
+                          <Select
+                            value={field.value?.toString()}
+                            onValueChange={(value) =>
+                              field.onChange(parseInt(value, 10))
+                            }
+                          >
+                            <SelectTrigger id="max_players">
+                              <SelectValue placeholder="Chọn số người chơi" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">2 người</SelectItem>
+                              <SelectItem value="3">3 người</SelectItem>
+                              <SelectItem value="4">4 người</SelectItem>
+                              <SelectItem value="8">8 người</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       />
                       {errors.max_players && (
                         <p className="text-sm text-red-600">
@@ -298,33 +355,109 @@ export default function CreateMatchPage() {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">
-                        Phí dịch vụ (10%):
-                      </span>
-                      <span className="font-semibold text-red-600">
-                        -{formatCurrency(serviceFee)}
-                      </span>
-                    </div>
-
-                    <div className="border-t pt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold">Giải thưởng:</span>
-                        <span className="font-bold text-green-600">
-                          {formatCurrency(prizePool)}
-                        </span>
+                    <div className="border-t pt-2 mt-3">
+                      <h4 className="text-sm font-semibold mb-2">
+                        Phân bổ giải thưởng:
+                      </h4>
+                      <div className="space-y-1.5">
+                        {prizeBreakdown.length > 0 ? (
+                          prizeBreakdown.map((item) => (
+                            <div
+                              key={item.rank}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <span className="text-muted-foreground">
+                                Hạng {item.rank}:
+                              </span>
+                              <span className="font-semibold text-green-600">
+                                {formatCurrency(item.prize)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Vui lòng nhập phí tham gia và chọn số người chơi
+                          </p>
+                        )}
+                      </div>
+                      <div className="border-t pt-2 mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold">
+                            Tổng giải thưởng:
+                          </span>
+                          <span className="font-bold text-green-600">
+                            {formatCurrency(totalPrizeAmount)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-blue-900 mb-2">Lưu ý:</h4>
-                    <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• Người thắng sẽ nhận toàn bộ giải thưởng</li>
-                      <li>• Phí dịch vụ 10% để duy trì platform</li>
-                      <li>• Trận đấu sẽ tự động bắt đầu khi đủ người</li>
-                      <li>• Có thể rời trận đấu trước khi bắt đầu</li>
-                    </ul>
+                    <h4 className="font-semibold text-blue-900 mb-2">
+                      Quy chế giải thưởng:
+                    </h4>
+                    {entryFee >= 10000 ? (
+                      <ul className="text-sm text-blue-800 space-y-1">
+                        {maxPlayers === 2 && (
+                          <li>
+                            • Hạng 1:{' '}
+                            {formatCurrency(calculatePrize(entryFee, 2, 1))}
+                          </li>
+                        )}
+                        {maxPlayers === 3 && (
+                          <>
+                            <li>
+                              • Hạng 1:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 3, 1))}
+                            </li>
+                            <li>
+                              • Hạng 2:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 3, 2))}
+                            </li>
+                          </>
+                        )}
+                        {maxPlayers === 4 && (
+                          <>
+                            <li>
+                              • Hạng 1:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 4, 1))}
+                            </li>
+                            <li>
+                              • Hạng 2:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 4, 2))}
+                            </li>
+                          </>
+                        )}
+                        {maxPlayers === 8 && (
+                          <>
+                            <li>
+                              • Hạng 1:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 8, 1))}
+                            </li>
+                            <li>
+                              • Hạng 2:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 8, 2))}
+                            </li>
+                            <li>
+                              • Hạng 3:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 8, 3))}
+                            </li>
+                            <li>
+                              • Hạng 4:{' '}
+                              {formatCurrency(calculatePrize(entryFee, 8, 4))}
+                            </li>
+                          </>
+                        )}
+                        <li>• Trận đấu sẽ tự động bắt đầu khi đủ người</li>
+                        <li>• Có thể rời trận đấu trước khi bắt đầu</li>
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-blue-800">
+                        Vui lòng nhập phí tham gia (tối thiểu 10,000 VNĐ) để xem
+                        quy chế giải thưởng
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

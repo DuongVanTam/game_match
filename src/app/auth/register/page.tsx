@@ -35,7 +35,7 @@ export default function RegisterPage() {
       await signUp(email, password, gameAccount);
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi');
     } finally {
       setLoading(false);
     }
@@ -46,21 +46,22 @@ export default function RegisterPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Check your email</CardTitle>
+            <CardTitle className="text-2xl">Kiểm tra email của bạn</CardTitle>
             <CardDescription>
-              We&apos;ve sent you a confirmation link
+              Chúng tôi đã gửi cho bạn một liên kết xác nhận
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-sm text-gray-600 mb-4">
-              Click the link in your email to complete the registration process.
+              Vui lòng nhấp vào liên kết trong email để hoàn tất quá trình đăng
+              ký.
             </p>
             <Button
               variant="outline"
               onClick={() => setSuccess(false)}
               className="w-full"
             >
-              Try again
+              Thử lại
             </Button>
           </CardContent>
         </Card>
@@ -72,8 +73,8 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Enter your details to get started</CardDescription>
+          <CardTitle className="text-2xl">Tạo tài khoản</CardTitle>
+          <CardDescription>Nhập thông tin của bạn để bắt đầu</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -82,7 +83,7 @@ export default function RegisterPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="your@email.com"
+                placeholder="email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -91,11 +92,11 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mật khẩu</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="Nhập mật khẩu"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -105,11 +106,11 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gameAccount">Game Account</Label>
+              <Label htmlFor="gameAccount">Tài khoản game</Label>
               <Input
                 id="gameAccount"
                 type="text"
-                placeholder="Enter your game account name"
+                placeholder="Nhập tên tài khoản game của bạn"
                 value={gameAccount}
                 onChange={(e) => setGameAccount(e.target.value)}
                 required
@@ -124,19 +125,19 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Account'}
+              {loading ? 'Đang tạo...' : 'Tạo tài khoản'}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              Đã có tài khoản?{' '}
               <Button
                 variant="link"
                 className="p-0 h-auto"
                 onClick={() => router.push('/auth/login')}
               >
-                Sign in
+                Đăng nhập
               </Button>
             </p>
           </div>

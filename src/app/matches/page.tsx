@@ -10,8 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Users, Clock, Trophy, Gamepad2, X } from 'lucide-react';
+import { Plus, Gamepad2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Navigation } from '@/components/Navigation';
@@ -47,13 +46,15 @@ export default function MatchesPage() {
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('all');
   const [joiningMatchId, setJoiningMatchId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -78,10 +79,15 @@ export default function MatchesPage() {
       if (notification?.type === 'error') {
         clearNotification();
       }
-      const response = await fetch('/api/matches');
+      const response = await fetch(
+        '/api/matches?status=open&paginated=1&limit=20'
+      );
       if (response.ok) {
         const data = await response.json();
-        setMatches(data);
+        const items: Match[] = data.items ?? [];
+        setMatches(items);
+        setNextCursor(data.nextCursor ?? null);
+        setHasMore(Boolean(data.hasMore));
       } else {
         const error = await response.json();
         const message =
@@ -98,6 +104,30 @@ export default function MatchesPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('status', 'open');
+      params.set('paginated', '1');
+      params.set('limit', '20');
+      if (nextCursor) params.set('cursor', nextCursor);
+      const response = await fetch(`/api/matches?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        const items: Match[] = data.items ?? [];
+        setMatches((prev) => [...prev, ...items]);
+        setNextCursor(data.nextCursor ?? null);
+        setHasMore(Boolean(data.hasMore));
+      }
+    } catch (e) {
+      console.error('Error loading more matches:', e);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -147,39 +177,6 @@ export default function MatchesPage() {
     return new Date(dateString).toLocaleString('vi-VN');
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      open: 'bg-green-100 text-green-800',
-      ongoing: 'bg-blue-100 text-blue-800',
-      completed: 'bg-purple-100 text-purple-800',
-      cancelled: 'bg-red-100 text-red-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      open: 'Mở',
-      ongoing: 'Đang diễn ra',
-      completed: 'Hoàn thành',
-      cancelled: 'Đã hủy',
-    };
-    return labels[status] || status;
-  };
-
-  const filteredMatches = matches.filter((match) => {
-    switch (activeTab) {
-      case 'open':
-        return match.status === 'open';
-      case 'ongoing':
-        return match.status === 'ongoing';
-      case 'completed':
-        return match.status === 'completed';
-      default:
-        return true;
-    }
-  });
-
   if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -206,7 +203,7 @@ export default function MatchesPage() {
             <div>
               <h1 className="text-3xl font-bold mb-2">Trận Đấu TFT</h1>
               <p className="text-muted-foreground">
-                Tham gia các trận đấu kỹ năng và giành giải thưởng
+                Danh sách phòng đang mở. Tham gia để thi đấu và giành thưởng.
               </p>
             </div>
             <Link href="/matches/create">
@@ -252,209 +249,112 @@ export default function MatchesPage() {
           </Alert>
         )}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="space-y-6"
-        >
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <Gamepad2 className="h-4 w-4" />
-              Tất cả
-            </TabsTrigger>
-            <TabsTrigger value="open" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Đang mở
-            </TabsTrigger>
-            <TabsTrigger value="ongoing" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Đang diễn ra
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              Hoàn thành
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value={activeTab} className="space-y-6">
-            {filteredMatches.length > 0 ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredMatches.map((match) => (
-                  <Card
+        {/* List dạng hàng thay cho card + tabs */}
+        {matches.length > 0 ? (
+          <div className="overflow-hidden rounded-lg border bg-white">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-muted-foreground bg-muted/40">
+              <div className="col-span-4">Trận đấu</div>
+              <div className="col-span-2 text-right">Phí tham gia</div>
+              <div className="col-span-2 text-center">Người chơi</div>
+              <div className="col-span-2">Người tạo</div>
+              <div className="col-span-2 text-right">Thao tác</div>
+            </div>
+            <div className="divide-y">
+              {matches.map((match) => {
+                const hasJoined =
+                  !!currentUserId &&
+                  !!match.match_players?.some(
+                    (p) => p.user_id === currentUserId && p.status === 'active'
+                  );
+                const isFull = match.current_players >= match.max_players;
+                return (
+                  <div
                     key={match.id}
-                    className="hover:shadow-lg transition-shadow"
+                    className="grid grid-cols-12 gap-2 px-4 py-4 items-center hover:bg-muted/20"
                   >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg mb-2">
-                            {match.title}
-                          </CardTitle>
-                          <CardDescription className="mb-3">
-                            {match.description}
-                          </CardDescription>
-                        </div>
-                        <Badge className={getStatusColor(match.status)}>
-                          {getStatusLabel(match.status)}
-                        </Badge>
+                    <div className="col-span-4">
+                      <div className="font-medium">{match.title}</div>
+                      <div className="text-sm text-muted-foreground line-clamp-1">
+                        {match.description}
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Phí tham gia:
-                          </span>
-                          <span className="font-semibold text-primary">
-                            {formatCurrency(match.entry_fee)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Người chơi:
-                          </span>
-                          <span className="font-semibold">
-                            {match.current_players}/{match.max_players}
-                          </span>
-                        </div>
-                        {currentUserId &&
-                          match.match_players?.some(
-                            (player) =>
-                              player.user_id === currentUserId &&
-                              player.status === 'active'
-                          ) && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-muted-foreground">
-                                Trạng thái của bạn:
-                              </span>
-                              <Badge>Đã tham gia</Badge>
-                            </div>
-                          )}
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Người tạo:
-                          </span>
-                          <span className="font-semibold">
-                            {match.created_by_user?.full_name || 'Người chơi'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">
-                            Thời gian:
-                          </span>
-                          <span className="text-sm">
-                            {formatDate(match.created_at)}
-                          </span>
-                        </div>
-
-                        {match.status === 'completed' && match.winner_user && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              Người thắng:
-                            </span>
-                            <span className="font-semibold text-yellow-600">
-                              {match.winner_user?.full_name || 'Đang cập nhật'}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="pt-3 border-t">
-                          {match.status === 'open' ? (
-                            <div className="flex flex-col gap-2">
-                              {currentUserId &&
-                              match.match_players?.some(
-                                (player) =>
-                                  player.user_id === currentUserId &&
-                                  player.status === 'active'
-                              ) ? (
-                                <Button className="w-full" disabled>
-                                  Bạn đã tham gia
-                                </Button>
-                              ) : (
-                                <Button
-                                  className="w-full"
-                                  onClick={() => handleJoinMatch(match.id)}
-                                  disabled={
-                                    joiningMatchId === match.id ||
-                                    match.current_players >= match.max_players
-                                  }
-                                >
-                                  {joiningMatchId === match.id ? (
-                                    <>
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                                      Đang tham gia...
-                                    </>
-                                  ) : match.current_players >=
-                                    match.max_players ? (
-                                    'Đã đủ người'
-                                  ) : (
-                                    'Tham gia ngay'
-                                  )}
-                                </Button>
-                              )}
-                              <Link href={`/matches/${match.id}`}>
-                                <Button className="w-full" variant="outline">
-                                  Xem chi tiết
-                                </Button>
-                              </Link>
-                            </div>
-                          ) : (
-                            <Link href={`/matches/${match.id}`}>
-                              <Button
-                                className="w-full"
-                                variant={
-                                  match.status === 'completed'
-                                    ? 'outline'
-                                    : 'default'
-                                }
-                                disabled={match.status === 'cancelled'}
-                              >
-                                {match.status === 'ongoing'
-                                  ? 'Đang diễn ra'
-                                  : match.status === 'completed'
-                                    ? 'Xem kết quả'
-                                    : match.status === 'cancelled'
-                                      ? 'Đã hủy'
-                                      : 'Chi tiết'}
-                              </Button>
-                            </Link>
-                          )}
-                        </div>
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Tạo lúc: {formatDate(match.created_at)}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Gamepad2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  Không có trận đấu nào
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  {activeTab === 'all'
-                    ? 'Chưa có trận đấu nào được tạo'
-                    : activeTab === 'open'
-                      ? 'Không có trận đấu nào đang mở'
-                      : activeTab === 'ongoing'
-                        ? 'Không có trận đấu nào đang diễn ra'
-                        : 'Không có trận đấu nào đã hoàn thành'}
-                </p>
-                {activeTab === 'all' && (
-                  <Link href="/matches/create">
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Tạo trận đấu đầu tiên
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+                    </div>
+                    <div className="col-span-2 text-right font-semibold text-primary">
+                      {formatCurrency(match.entry_fee)}
+                    </div>
+                    <div className="col-span-2 text-center font-medium">
+                      {match.current_players}/{match.max_players}
+                      {hasJoined && <Badge className="ml-2">Đã tham gia</Badge>}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium">
+                        {match.created_by_user?.full_name || 'Người chơi'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      {hasJoined ? (
+                        <Link href={`/matches/${match.id}`}>
+                          <Button className="w-full" variant="outline">
+                            Xem chi tiết
+                          </Button>
+                        </Link>
+                      ) : (
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            onClick={() => router.push(`/matches/${match.id}`)}
+                          >
+                            Chi tiết
+                          </Button>
+                          <Button
+                            onClick={() => handleJoinMatch(match.id)}
+                            disabled={joiningMatchId === match.id || isFull}
+                          >
+                            {joiningMatchId === match.id
+                              ? 'Đang tham gia...'
+                              : isFull
+                                ? 'Đã đủ người'
+                                : 'Tham gia'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {hasMore && (
+                <div className="px-4 py-4">
+                  <Button
+                    className="w-full"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? 'Đang tải...' : 'Tải thêm'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Gamepad2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              Không có phòng đang mở
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Hiện tại chưa có trận đấu nào đang mở. Tạo trận đấu mới để bắt
+              đầu.
+            </p>
+            <Link href="/matches/create">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Tạo trận đấu đầu tiên
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
       <Footer />
     </div>

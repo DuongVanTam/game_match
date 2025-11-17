@@ -32,7 +32,6 @@ import {
 export default function WalletTopupPage() {
   const router = useRouter();
   const [amount, setAmount] = useState<string>('100000');
-  const [paymentMethod, setPaymentMethod] = useState<'payos' | 'momo'>('payos');
   const [loading, setLoading] = useState<boolean>(false);
   const [initError, setInitError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -148,7 +147,7 @@ export default function WalletTopupPage() {
       const res = await fetch('/api/topup/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amt, paymentMethod }),
+        body: JSON.stringify({ amount: amt, paymentMethod: 'payos' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -177,7 +176,7 @@ export default function WalletTopupPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Nạp tiền tạm ứng dịch vụ</h1>
           <p className="text-muted-foreground mt-1">
-            Sử dụng PayOS hoặc Momo để nạp tiền vào số dư ảo của bạn
+            Sử dụng PayOS để nạp tiền vào số dư ảo của bạn
           </p>
         </div>
 
@@ -218,21 +217,7 @@ export default function WalletTopupPage() {
                 </p>
               </div>
 
-              <div className="grid gap-2">
-                <Label>Phương thức thanh toán</Label>
-                <Select
-                  value={paymentMethod}
-                  onValueChange={(v) => setPaymentMethod(v as 'payos' | 'momo')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn phương thức" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="payos">PayOS</SelectItem>
-                    <SelectItem value="momo">Momo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Phương thức thanh toán cố định: PayOS */}
 
               <div className="flex items-center gap-3">
                 <Button type="submit" disabled={loading} className="gap-2">
@@ -291,7 +276,7 @@ export default function WalletTopupPage() {
         {!txRef && (
           <div className="mt-6 text-sm text-muted-foreground">
             Lưu ý: Đây là số dư ảo (tạm ứng dịch vụ). Giao dịch thật diễn ra qua
-            PayOS/Momo.
+            PayOS.
           </div>
         )}
       </div>

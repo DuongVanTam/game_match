@@ -7,43 +7,80 @@ export async function GET(
 ) {
   try {
     const client = createServerClient();
-    const { id: matchId } = await params;
+    const { id: roomId } = await params;
 
-    // Get match with all related data
-    const { data: match, error } = await client
-      .from('matches')
+    // Get room with players and matches
+    const { data: room, error } = await client
+      .from('rooms')
       .select(
         `
         *,
-        created_by_user:users!matches_created_by_fkey(full_name, avatar_url),
-        winner_user:users!matches_winner_id_fkey(full_name, avatar_url),
-        match_players(
+        created_by_user:users!rooms_created_by_fkey(full_name, avatar_url),
+        room_players(
           id,
           user_id,
           status,
           joined_at,
           left_at,
           user:users(full_name, avatar_url)
+        ),
+        matches(
+          id,
+          room_id,
+          status,
+          round_number,
+          entry_fee,
+          max_players,
+          current_players,
+          created_by,
+          created_at,
+          started_at,
+          completed_at,
+          winner_id,
+          proof_image_url,
+        placements,
+          winner_user:users!matches_winner_id_fkey(full_name, avatar_url),
+          match_players(
+            id,
+            user_id,
+            status,
+            joined_at,
+            left_at,
+            user:users(full_name, avatar_url)
+          )
         )
       `
       )
-      .eq('id', matchId)
+      .eq('id', roomId)
       .single();
 
     if (error) {
-      console.error('Error fetching match:', error);
-      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+      console.error('Error fetching room:', error);
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    // Calculate current players count
-    const currentPlayers =
-      match.match_players?.filter(
+    const activeMembers =
+      room.room_players?.filter(
         (player: { status: string | null }) => player.status === 'active'
-      ).length || 0;
+      ) ?? [];
+
+    const sortedMatches = Array.isArray(room.matches)
+      ? [...room.matches].sort(
+          (a, b) =>
+            new Date(b.created_at ?? b.started_at ?? 0).getTime() -
+            new Date(a.created_at ?? a.started_at ?? 0).getTime()
+        )
+      : [];
+
+    const latestMatch = sortedMatches[0] ?? null;
 
     return NextResponse.json({
-      ...match,
-      current_players: currentPlayers,
+      ...room,
+      current_players: activeMembers.length,
+      match_players: activeMembers,
+      latest_match: latestMatch,
+      matches: sortedMatches,
+      winner_user: latestMatch?.winner_user ?? null,
     });
   } catch (error) {
     console.error('Error in GET /api/matches/[id]:', error);

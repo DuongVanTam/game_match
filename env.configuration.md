@@ -17,6 +17,16 @@ PAYOS_CLIENT_ID=your_payos_dev_client_id
 PAYOS_API_KEY=your_payos_dev_api_key
 PAYOS_CHECKSUM_KEY=your_payos_dev_checksum_key
 
+# AI / Vision Analysis (Development)
+
+# Required if you want AI to auto-read match screenshots
+
+OPENAI_API_KEY=your_openai_dev_api_key
+
+# Optional: override model (default gpt-4o-mini)
+
+OPENAI_VISION_MODEL=gpt-4o-mini
+
 # Riot API Configuration
 
 RIOT_API_KEY=your_riot_api_key
@@ -55,6 +65,12 @@ PAYOS_CLIENT_ID=your_payos_staging_client_id
 PAYOS_API_KEY=your_payos_staging_api_key
 PAYOS_CHECKSUM_KEY=your_payos_staging_checksum_key
 
+# AI / Vision Analysis (Staging)
+
+OPENAI_API_KEY=your_openai_staging_api_key
+
+# OPENAI_VISION_MODEL=gpt-4o-mini
+
 # Riot API Configuration
 
 RIOT_API_KEY=your_riot_api_key
@@ -92,6 +108,12 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_prod_service_role_key
 PAYOS_CLIENT_ID=your_payos_prod_client_id
 PAYOS_API_KEY=your_payos_prod_api_key
 PAYOS_CHECKSUM_KEY=your_payos_prod_checksum_key
+
+# AI / Vision Analysis (Production)
+
+OPENAI_API_KEY=your_openai_prod_api_key
+
+# OPENAI_VISION_MODEL=gpt-4o-mini
 
 # Riot API Configuration
 

@@ -1,0 +1,9 @@
+-- Add placements column to matches table
+-- Run this in Supabase SQL Editor
+
+ALTER TABLE public.matches
+ADD COLUMN IF NOT EXISTS placements JSONB;
+
+COMMENT ON COLUMN public.matches.placements IS
+  'JSON array storing match placements with user_id, rank, confidence, and reason metadata.';
+

@@ -8,7 +8,7 @@ export async function POST(
   try {
     const authClient = createApiAuthClient(request);
     const serviceClient = createServerClient();
-    const { id: matchId } = await params;
+    const { id: roomId } = await params;
 
     // Get current user from auth
     const {
@@ -20,93 +20,110 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get match details
-    const { data: match, error: matchError } = await serviceClient
-      .from('matches')
+    // Get room details
+    const { data: room, error: roomError } = await serviceClient
+      .from('rooms')
       .select('*')
-      .eq('id', matchId)
+      .eq('id', roomId)
       .single();
 
-    if (matchError || !match) {
-      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    if (roomError || !room) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    // Check if match is still open
-    if (match.status !== 'open') {
+    // Only allow leaving when room is open or ongoing
+    if (!['open', 'ongoing'].includes(room.status)) {
       return NextResponse.json(
-        { error: 'Cannot leave match that has already started or ended' },
+        {
+          error: 'Cannot leave room that has already started or ended',
+          message: 'Bạn không thể rời phòng sau khi trận đấu đã kết thúc.',
+        },
         { status: 400 }
       );
     }
 
-    // Check if user has joined this match
-    const { data: matchPlayer, error: playerError } = await serviceClient
-      .from('match_players')
+    // Check if user has joined this room
+    const { data: roomMember, error: memberError } = await serviceClient
+      .from('room_players')
       .select('*')
-      .eq('match_id', matchId)
+      .eq('room_id', roomId)
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single();
 
-    if (playerError || !matchPlayer) {
+    if (memberError || !roomMember) {
       return NextResponse.json(
-        { error: 'You are not a member of this match' },
+        {
+          error: 'You are not a member of this room',
+          message: 'Bạn không có trong danh sách phòng đấu.',
+        },
         { status: 400 }
       );
     }
 
-    // Refund entry fee
-    const { data: ledgerId, error: walletUpdateError } =
-      await serviceClient.rpc('update_wallet_balance', {
-        p_user_id: user.id,
-        p_amount: match.entry_fee,
-        p_transaction_type: 'leave_match',
-        p_description: `Rời trận đấu: ${match.title} (hoàn phí)`,
-        p_reference_id: matchId,
-        p_reference_type: 'match',
-        p_metadata: {
-          match_id: matchId,
-          entry_fee: match.entry_fee,
-          refund: true,
-        },
-      });
-
-    if (walletUpdateError) {
-      console.error('Error refunding entry fee:', walletUpdateError);
-      return NextResponse.json(
-        { error: 'Failed to refund entry fee' },
-        { status: 500 }
-      );
-    }
-
-    // Leave match
+    // Leave room
     const { error: leaveError } = await serviceClient
-      .from('match_players')
+      .from('room_players')
       .update({
         status: 'left',
         left_at: new Date().toISOString(),
       })
-      .eq('id', matchPlayer.id);
+      .eq('id', roomMember.id);
 
     if (leaveError) {
-      console.error('Error leaving match:', leaveError);
+      console.error('Error leaving room:', leaveError);
       return NextResponse.json(
-        { error: 'Failed to leave match' },
+        { error: 'Failed to leave room' },
         { status: 500 }
       );
     }
 
-    const { data: remainingPlayers } = await serviceClient
-      .from('match_players')
-      .select('id')
-      .eq('match_id', matchId)
+    // If a match is ongoing, mark the player as left in the match players list
+    if (room.status === 'ongoing') {
+      const { data: ongoingMatch, error: ongoingMatchError } =
+        await serviceClient
+          .from('matches')
+          .select('id')
+          .eq('room_id', roomId)
+          .eq('status', 'ongoing')
+          .maybeSingle();
+
+      if (ongoingMatchError) {
+        console.error(
+          'Error fetching ongoing match during leave:',
+          ongoingMatchError
+        );
+      }
+
+      if (ongoingMatch) {
+        const { error: updateMatchPlayerError } = await serviceClient
+          .from('match_players')
+          .update({
+            status: 'left',
+            left_at: new Date().toISOString(),
+          })
+          .eq('match_id', ongoingMatch.id)
+          .eq('user_id', user.id);
+
+        if (updateMatchPlayerError) {
+          console.error(
+            'Error updating match player status during leave:',
+            updateMatchPlayerError
+          );
+        }
+      }
+    }
+
+    const { count: remainingActive } = await serviceClient
+      .from('room_players')
+      .select('id', { count: 'exact', head: true })
+      .eq('room_id', roomId)
       .eq('status', 'active');
 
     return NextResponse.json({
       success: true,
-      message: 'Successfully left match',
-      ledgerId,
-      current_players: remainingPlayers?.length || 0,
+      message: 'Bạn đã rời phòng đấu',
+      current_players: remainingActive ?? 0,
     });
   } catch (error) {
     console.error('Error in POST /api/matches/[id]/leave:', error);

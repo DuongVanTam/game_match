@@ -28,7 +28,7 @@ export default function AuthCallbackPage() {
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
-          setError('Authentication failed');
+          setError('Xác thực thất bại');
           return;
         }
 
@@ -43,18 +43,18 @@ export default function AuthCallbackPage() {
 
           if (!initResponse.ok) {
             console.error('Failed to initialize user');
-            setError('Failed to initialize user account');
+            setError('Không thể khởi tạo tài khoản người dùng');
             return;
           }
 
           // User authenticated successfully, redirect to home
           router.push('/');
         } else {
-          setError('No session found');
+          setError('Không tìm thấy phiên đăng nhập');
         }
       } catch (err) {
         console.error('Error in auth callback:', err);
-        setError('An unexpected error occurred');
+        setError('Đã xảy ra lỗi không mong muốn');
       } finally {
         setLoading(false);
       }
@@ -68,9 +68,9 @@ export default function AuthCallbackPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle>Authenticating...</CardTitle>
+            <CardTitle>Đang xác thực...</CardTitle>
             <CardDescription>
-              Please wait while we verify your account
+              Vui lòng đợi trong khi chúng tôi xác minh tài khoản của bạn
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -86,7 +86,7 @@ export default function AuthCallbackPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-red-600">Authentication Error</CardTitle>
+            <CardTitle className="text-red-600">Lỗi xác thực</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -94,7 +94,7 @@ export default function AuthCallbackPage() {
               onClick={() => router.push('/auth/login')}
               className="text-blue-600 hover:text-blue-800 underline"
             >
-              Try again
+              Thử lại
             </button>
           </CardContent>
         </Card>

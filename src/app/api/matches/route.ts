@@ -27,18 +27,6 @@ const createMatchSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const authClient = await createAuthServerClient();
-
-    // Check authentication using RLS-aware client
-    const {
-      data: { user },
-      error: authError,
-    } = await authClient.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') as
@@ -47,48 +35,106 @@ export async function GET(request: NextRequest) {
       | 'completed'
       | 'cancelled'
       | null;
+    const paginated = searchParams.get('paginated') === '1';
+    const limitParam = searchParams.get('limit');
+    const cursor = searchParams.get('cursor'); // ISO datetime string
+    const limit = Math.min(
+      Math.max(parseInt(limitParam || '20', 10) || 20, 1),
+      50
+    );
 
-    // Build query
     const serviceClient = createServerClient();
 
     let query = serviceClient
-      .from('matches')
+      .from('rooms')
       .select(
         `
         *,
-        created_by_user:users!matches_created_by_fkey(full_name, avatar_url),
-        winner_user:users!matches_winner_id_fkey(full_name, avatar_url),
-        match_players(user_id, status)
+        created_by_user:users!rooms_created_by_fkey(full_name, avatar_url),
+        room_players(
+          user_id,
+          status,
+          users (
+            full_name,
+            avatar_url
+          )
+        ),
+        matches:matches(
+          id,
+          status,
+          round_number,
+          created_at,
+          started_at,
+          completed_at,
+          winner_id,
+          placements,
+          winner:users!matches_winner_id_fkey(full_name, avatar_url)
+        )
       `
       )
       .order('created_at', { ascending: false });
 
-    // Filter by status if provided
     if (status) {
       query = query.eq('status', status);
     }
 
-    const { data: matches, error } = await query;
+    if (paginated) {
+      if (cursor) {
+        query = query.lt('created_at', cursor);
+      }
+      query = query.limit(limit);
+    }
+
+    const { data: rooms, error } = await query;
 
     if (error) {
-      console.error('Error fetching matches:', error);
+      console.error('Error fetching rooms:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch matches' },
+        { error: 'Failed to fetch rooms' },
         { status: 500 }
       );
     }
 
-    // Transform data to include current_players count
-    const transformedMatches =
-      matches?.map((match) => ({
-        ...match,
-        current_players:
-          match.match_players?.filter(
+    const transformedRooms =
+      rooms?.map((room) => {
+        const activeMembers =
+          room.room_players?.filter(
             (p: { status: string | null }) => p.status === 'active'
-          ).length || 0,
-      })) || [];
+          ) ?? [];
 
-    return NextResponse.json(transformedMatches);
+        const latestMatch = Array.isArray(room.matches)
+          ? [...room.matches].sort(
+              (a, b) =>
+                new Date(b.created_at ?? b.started_at ?? 0).getTime() -
+                new Date(a.created_at ?? a.started_at ?? 0).getTime()
+            )[0]
+          : null;
+
+        return {
+          ...room,
+          current_players: activeMembers.length,
+          match_players: activeMembers.map((member) => ({
+            user_id: member.user_id,
+            status: member.status,
+          })),
+          winner_user: latestMatch?.winner ?? null,
+        };
+      }) ?? [];
+
+    if (paginated) {
+      const hasMore = transformedRooms.length === limit;
+      const nextCursor =
+        transformedRooms.length > 0
+          ? transformedRooms[transformedRooms.length - 1].created_at
+          : null;
+      return NextResponse.json({
+        items: transformedRooms,
+        nextCursor,
+        hasMore,
+      });
+    }
+
+    return NextResponse.json(transformedRooms);
   } catch (error) {
     console.error('Error in GET /api/matches:', error);
     return NextResponse.json(
@@ -149,9 +195,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create match
-    const { data: match, error: matchError } = await client
-      .from('matches')
+    // Create room
+    const { data: room, error: roomError } = await client
+      .from('rooms')
       .insert({
         title,
         description,
@@ -163,100 +209,45 @@ export async function POST(request: NextRequest) {
       .select(
         `
         *,
-        created_by_user:users!matches_created_by_fkey(full_name, avatar_url)
+        created_by_user:users!rooms_created_by_fkey(full_name, avatar_url)
       `
       )
       .single();
 
-    if (matchError) {
-      console.error('Error creating match:', matchError);
+    if (roomError) {
+      console.error('Error creating room:', roomError);
       return NextResponse.json(
-        { error: 'Failed to create match' },
+        { error: 'Failed to create room' },
         { status: 500 }
       );
     }
 
-    // Deduct entry fee from creator's wallet
-    const { data: ledgerId, error: walletUpdateError } = await client.rpc(
-      'update_wallet_balance',
-      {
-        p_user_id: user.id,
-        p_amount: -entry_fee,
-        p_transaction_type: 'join_match',
-        p_description: `Tham gia trận đấu: ${title}`,
-        p_reference_id: match.id,
-        p_reference_type: 'match',
-        p_metadata: {
-          match_id: match.id,
-          entry_fee: entry_fee,
-        },
-      }
-    );
+    // Add creator as room member
+    const { error: memberError } = await client.from('room_players').insert({
+      room_id: room.id,
+      user_id: user.id,
+      status: 'active',
+      joined_at: new Date().toISOString(),
+    });
 
-    if (walletUpdateError) {
-      console.error('Error updating wallet balance:', walletUpdateError);
-      // Rollback: delete the match if wallet update fails
-      await client.from('matches').delete().eq('id', match.id);
+    if (memberError) {
+      console.error('Error adding creator to room:', memberError);
+      await client.from('rooms').delete().eq('id', room.id);
       return NextResponse.json(
-        { error: 'Failed to deduct entry fee' },
+        { error: 'Failed to add creator to room' },
         { status: 500 }
       );
-    }
-
-    // Add creator as a participant
-    const { data: matchPlayer, error: joinError } = await client
-      .from('match_players')
-      .insert({
-        match_id: match.id,
-        user_id: user.id,
-        status: 'active',
-        joined_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (joinError) {
-      console.error('Error adding creator as participant:', joinError);
-      // Rollback: delete the match and refund entry fee
-      await client.from('matches').delete().eq('id', match.id);
-      // Refund entry fee
-      await client.rpc('update_wallet_balance', {
-        p_user_id: user.id,
-        p_amount: entry_fee,
-        p_transaction_type: 'refund',
-        p_description: `Hoàn tiền do lỗi tạo trận đấu: ${title}`,
-        p_reference_id: match.id,
-        p_reference_type: 'match',
-        p_metadata: {
-          match_id: match.id,
-          reason: 'match_creation_failed',
-        },
-      });
-      return NextResponse.json(
-        { error: 'Failed to add creator as participant' },
-        { status: 500 }
-      );
-    }
-
-    // Check if match is full (creator is the first player)
-    // If max_players is 1, match should start immediately
-    let finalStatus = 'open';
-    if (max_players === 1) {
-      finalStatus = 'ongoing';
-      // Update match status to ongoing
-      await client
-        .from('matches')
-        .update({
-          status: 'ongoing',
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', match.id);
     }
 
     return NextResponse.json({
-      ...match,
-      status: finalStatus,
+      ...room,
       current_players: 1,
+      match_players: [
+        {
+          user_id: user.id,
+          status: 'active',
+        },
+      ],
     });
   } catch (error) {
     console.error('Error in POST /api/matches:', error);

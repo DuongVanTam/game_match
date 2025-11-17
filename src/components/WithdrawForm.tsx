@@ -38,8 +38,8 @@ const withdrawSchema = z.object({
     .number()
     .min(10000, 'Số tiền tối thiểu là 10,000 VND')
     .max(10000000, 'Số tiền tối đa là 10,000,000 VND'),
-  paymentMethod: z.enum(['momo', 'bank_transfer', 'vietqr'], {
-    message: 'Vui lòng chọn phương thức thanh toán',
+  paymentMethod: z.literal('bank_transfer', {
+    errorMap: () => ({ message: 'Chỉ hỗ trợ chuyển khoản ngân hàng' }),
   }),
   accountNumber: z
     .string()
@@ -78,6 +78,9 @@ export function WithdrawForm({
     formState: { errors },
   } = useForm<WithdrawFormData>({
     resolver: zodResolver(withdrawSchema),
+    defaultValues: {
+      paymentMethod: 'bank_transfer',
+    },
   });
 
   const selectedPaymentMethod = watch('paymentMethod');
@@ -225,11 +228,9 @@ export function WithdrawForm({
             <Label htmlFor="paymentMethod">Phương thức thanh toán</Label>
             <Select
               onValueChange={(value) =>
-                setValue(
-                  'paymentMethod',
-                  value as 'momo' | 'bank_transfer' | 'vietqr'
-                )
+                setValue('paymentMethod', value as 'bank_transfer')
               }
+              defaultValue="bank_transfer"
             >
               <SelectTrigger
                 className={errors.paymentMethod ? 'border-red-500' : ''}
@@ -237,22 +238,10 @@ export function WithdrawForm({
                 <SelectValue placeholder="Chọn phương thức thanh toán" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="momo">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="h-4 w-4" />
-                    Ví MoMo
-                  </div>
-                </SelectItem>
                 <SelectItem value="bank_transfer">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
                     Chuyển khoản ngân hàng
-                  </div>
-                </SelectItem>
-                <SelectItem value="vietqr">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    VietQR
                   </div>
                 </SelectItem>
               </SelectContent>

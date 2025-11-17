@@ -1,4 +1,6 @@
-import { supabase } from './supabase';
+import { createBrowserClient } from '@supabase/ssr';
+import { Database } from '@/types/database';
+import { cache } from 'react';
 
 export interface UploadResult {
   path: string;
@@ -17,11 +19,27 @@ export interface UploadOptions {
 }
 
 // Client-side upload function
+const getClient = cache(() =>
+  createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+);
+
 export const uploadFile = async (
   options: UploadOptions
 ): Promise<UploadResult> => {
   try {
     const { bucket, path, file, options: uploadOptions } = options;
+
+    const supabase = getClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    console.log('[uploadFile] user', user?.id, userError);
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -46,6 +64,8 @@ export const uploadFile = async (
         upsert: uploadOptions?.upsert || false,
       });
 
+    console.log('[uploadFile] upload result', data, error);
+
     if (error) {
       console.error('Upload error:', error);
       return { path: '', url: '', error: error.message };
@@ -55,6 +75,8 @@ export const uploadFile = async (
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(data.path);
+
+    console.log('[uploadFile] urlData', urlData);
 
     return {
       path: data.path,

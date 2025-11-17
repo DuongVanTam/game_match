@@ -108,6 +108,27 @@ export async function middleware(request: NextRequest) {
         maxRequests = Math.max(maxRequests, 200);
       }
     }
+
+    const isStartMatchEndpoint =
+      pathname.startsWith('/api/rooms/') && pathname.endsWith('/start-match');
+
+    if (isStartMatchEndpoint) {
+      if (process.env.NODE_ENV !== 'production') {
+        maxRequests = Number.MAX_SAFE_INTEGER;
+      } else {
+        maxRequests = Math.max(maxRequests, 120);
+      }
+    }
+
+    const isAiAnalysisEndpoint = pathname.startsWith('/api/ai/analyze-match');
+
+    if (isAiAnalysisEndpoint) {
+      if (process.env.NODE_ENV !== 'production') {
+        maxRequests = Number.MAX_SAFE_INTEGER;
+      } else {
+        maxRequests = Math.max(maxRequests, 60);
+      }
+    }
   }
 
   // Skip rate limiting for SSE endpoints (long-lived connections)
