@@ -101,6 +101,7 @@ export const deleteFile = async (
   path: string
 ): Promise<boolean> => {
   try {
+    const supabase = getClient();
     const { error } = await supabase.storage.from(bucket).remove([path]);
     return !error;
   } catch (error) {
