@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database';
 import {
@@ -17,6 +17,7 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState('');
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -25,6 +26,90 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        const code = searchParams.get('code');
+        const type = searchParams.get('type');
+
+        // If we have a code parameter, exchange it for a session
+        if (code) {
+          const { data, error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            setError('Link không hợp lệ hoặc đã hết hạn');
+            setLoading(false);
+            return;
+          }
+
+          // After code exchange, check if we have a session
+          const { data: sessionData } = await supabase.auth.getSession();
+
+          if (sessionData?.session) {
+            // Check if this is a password recovery flow
+            // If type is explicitly 'recovery', redirect to reset password
+            if (type === 'recovery') {
+              router.push('/auth/reset-password');
+              return;
+            }
+
+            // If no type specified, try to determine the flow
+            // For password reset emails, Supabase creates a temporary session
+            // We can check if user email is already verified to distinguish
+            const user = sessionData.session.user;
+            const isEmailVerified =
+              user.email_confirmed_at || user.confirmed_at;
+
+            // If email is already verified and user exists, likely password recovery
+            // Otherwise, it's likely a signup/email confirmation
+            if (isEmailVerified && !type) {
+              // This is likely a password recovery flow
+              // Redirect to reset password page
+              router.push('/auth/reset-password');
+              return;
+            }
+
+            // For email confirmation/signup, initialize user
+            const initResponse = await fetch('/api/auth/initialize-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (!initResponse.ok) {
+              console.error('Failed to initialize user');
+              setError('Không thể khởi tạo tài khoản người dùng');
+              return;
+            }
+
+            // User authenticated successfully, redirect to home
+            router.push('/');
+            return;
+          } else {
+            setError('Không tìm thấy phiên đăng nhập sau khi xác thực');
+            return;
+          }
+        }
+
+        // Handle password recovery flow by type parameter
+        if (type === 'recovery') {
+          const { data, error } = await supabase.auth.getSession();
+
+          if (error) {
+            setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
+            return;
+          }
+
+          if (data.session) {
+            // Redirect to reset password page
+            router.push('/auth/reset-password');
+            return;
+          } else {
+            setError('Không tìm thấy phiên đặt lại mật khẩu');
+            return;
+          }
+        }
+
+        // Handle normal auth flow (signup, email confirmation, etc.)
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
@@ -61,7 +146,7 @@ export default function AuthCallbackPage() {
     };
 
     handleAuthCallback();
-  }, [supabase, router]);
+  }, [supabase, router, searchParams]);
 
   if (loading) {
     return (

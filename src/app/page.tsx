@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
@@ -12,6 +16,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Handle auth code from Supabase (password reset, email confirmation, etc.)
+    const code = searchParams.get('code');
+    if (code) {
+      // Check if type parameter exists, if not, we need to determine the flow
+      const type = searchParams.get('type');
+
+      // Redirect to callback page to handle the code exchange
+      // If no type specified, callback will determine based on session state
+      const callbackUrl = type
+        ? `/auth/callback?code=${code}&type=${type}`
+        : `/auth/callback?code=${code}`;
+      router.replace(callbackUrl);
+    }
+  }, [searchParams, router]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />

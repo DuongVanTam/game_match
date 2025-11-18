@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database';
@@ -21,12 +21,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Check for success message from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get('message');
+    if (message === 'password-reset-success') {
+      setSuccess('Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập.');
+      // Clear the message from URL
+      router.replace('/auth/login');
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,12 +139,27 @@ export default function LoginPage() {
               </Alert>
             )}
 
+            {success && (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 space-y-2 text-center">
+            <p className="text-sm text-gray-600">
+              <Button
+                variant="link"
+                className="p-0 h-auto text-sm"
+                onClick={() => router.push('/auth/forgot-password')}
+              >
+                Quên mật khẩu?
+              </Button>
+            </p>
             <p className="text-sm text-gray-600">
               Chưa có tài khoản?{' '}
               <Button

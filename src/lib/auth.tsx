@@ -10,9 +10,15 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string) => Promise<void>;
-  signUp: (email: string, password: string, gameAccount: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    gameAccount: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -64,7 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signUp = async (email: string, password: string, gameAccount: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    gameAccount: string
+  ) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -93,6 +103,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    });
+
+    if (error) throw error;
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: password,
+    });
+
+    if (error) throw error;
+  };
+
   const isAdmin = user?.user_metadata?.role === 'admin' || false;
 
   const value = {
@@ -103,6 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     verifyEmail,
+    resetPassword,
+    updatePassword,
     isAdmin,
   };
 
