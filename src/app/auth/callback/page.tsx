@@ -29,43 +29,147 @@ function AuthCallbackContent() {
         const code = searchParams.get('code');
         const type = searchParams.get('type');
 
-        // If we have a code parameter, exchange it for a session
-        if (code) {
-          const { data, error: exchangeError } =
-            await supabase.auth.exchangeCodeForSession(code);
+        // Handle password recovery flow first (before code exchange)
+        // For password recovery, Supabase automatically creates a session when user clicks the link
+        // We don't need to exchange code for password recovery
+        if (type === 'recovery') {
+          console.log('Password recovery flow detected');
 
-          if (exchangeError) {
-            setError('Link không hợp lệ hoặc đã hết hạn');
+          // Check if we already have a session (Supabase creates it automatically)
+          const { data: sessionData, error: sessionError } =
+            await supabase.auth.getSession();
+
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            setError('Không thể kiểm tra phiên đăng nhập');
             setLoading(false);
             return;
           }
 
+          if (sessionData?.session) {
+            console.log('Recovery session found:', {
+              user: sessionData.session.user?.email,
+            });
+            router.push('/auth/reset-password');
+            return;
+          } else {
+            // If no session but we have code, try to verify OTP instead
+            if (code) {
+              console.log('No session found, trying verifyOtp for recovery');
+              const { data: otpData, error: otpError } =
+                await supabase.auth.verifyOtp({
+                  token_hash: code,
+                  type: 'recovery',
+                });
+
+              if (otpError) {
+                console.error('OTP verification error:', otpError);
+                setError(
+                  'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu link mới.'
+                );
+                setLoading(false);
+                return;
+              }
+
+              if (otpData?.session) {
+                console.log('OTP verified, session created');
+                router.push('/auth/reset-password');
+                return;
+              }
+            }
+
+            setError(
+              'Không tìm thấy phiên đặt lại mật khẩu. Vui lòng yêu cầu link mới.'
+            );
+            setLoading(false);
+            return;
+          }
+        }
+
+        // If we have a code parameter for non-recovery flows, exchange it for a session
+        if (code) {
+          console.log('Exchanging code for session:', { code, type });
+
+          const { data: exchangeData, error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            console.error('Code exchange error:', exchangeError);
+
+            // Handle specific error cases
+            if (
+              exchangeError.message.includes('expired') ||
+              exchangeError.message.includes('invalid')
+            ) {
+              setError(
+                'Link đã hết hạn hoặc không hợp lệ. Vui lòng yêu cầu link mới.'
+              );
+            } else if (exchangeError.message.includes('already been used')) {
+              setError('Link này đã được sử dụng. Vui lòng yêu cầu link mới.');
+            } else if (exchangeError.message.includes('code verifier')) {
+              // For PKCE flow, try verifyOtp instead
+              console.log('PKCE error detected, trying verifyOtp');
+              const { data: otpData, error: otpError } =
+                await supabase.auth.verifyOtp({
+                  token_hash: code,
+                  type: 'email', // Default to email for non-recovery flows
+                });
+
+              if (otpError || !otpData?.session) {
+                setError(
+                  'Link không hợp lệ: ' +
+                    (otpError?.message || exchangeError.message)
+                );
+                setLoading(false);
+                return;
+              }
+
+              // OTP verified successfully
+              console.log('OTP verified successfully');
+              const { data: sessionData } = await supabase.auth.getSession();
+
+              if (sessionData?.session) {
+                const initResponse = await fetch('/api/auth/initialize-user', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                });
+
+                if (!initResponse.ok) {
+                  console.error('Failed to initialize user');
+                  setError('Không thể khởi tạo tài khoản người dùng');
+                  return;
+                }
+
+                router.push('/');
+                return;
+              }
+            } else {
+              setError(`Link không hợp lệ: ${exchangeError.message}`);
+            }
+            setLoading(false);
+            return;
+          }
+
+          console.log('Code exchanged successfully:', exchangeData);
+
           // After code exchange, check if we have a session
-          const { data: sessionData } = await supabase.auth.getSession();
+          const { data: sessionData, error: sessionError } =
+            await supabase.auth.getSession();
+
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            setError('Không thể lấy phiên đăng nhập');
+            setLoading(false);
+            return;
+          }
 
           if (sessionData?.session) {
-            // Check if this is a password recovery flow
-            // If type is explicitly 'recovery', redirect to reset password
-            if (type === 'recovery') {
-              router.push('/auth/reset-password');
-              return;
-            }
-
-            // If no type specified, try to determine the flow
-            // For password reset emails, Supabase creates a temporary session
-            // We can check if user email is already verified to distinguish
-            const user = sessionData.session.user;
-            const isEmailVerified =
-              user.email_confirmed_at || user.confirmed_at;
-
-            // If email is already verified and user exists, likely password recovery
-            // Otherwise, it's likely a signup/email confirmation
-            if (isEmailVerified && !type) {
-              // This is likely a password recovery flow
-              // Redirect to reset password page
-              router.push('/auth/reset-password');
-              return;
-            }
+            console.log('Session created:', {
+              user: sessionData.session.user?.email,
+              type,
+            });
 
             // For email confirmation/signup, initialize user
             const initResponse = await fetch('/api/auth/initialize-user', {
@@ -85,29 +189,13 @@ function AuthCallbackContent() {
             router.push('/');
             return;
           } else {
+            console.error('No session found after code exchange');
             setError('Không tìm thấy phiên đăng nhập sau khi xác thực');
             return;
           }
         }
 
-        // Handle password recovery flow by type parameter
-        if (type === 'recovery') {
-          const { data, error } = await supabase.auth.getSession();
-
-          if (error) {
-            setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
-            return;
-          }
-
-          if (data.session) {
-            // Redirect to reset password page
-            router.push('/auth/reset-password');
-            return;
-          } else {
-            setError('Không tìm thấy phiên đặt lại mật khẩu');
-            return;
-          }
-        }
+        // This section is now handled above (before code exchange)
 
         // Handle normal auth flow (signup, email confirmation, etc.)
         const { data, error } = await supabase.auth.getSession();

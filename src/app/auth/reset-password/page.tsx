@@ -35,18 +35,51 @@ function ResetPasswordContent() {
     // Check if we have a valid session (user clicked the reset link)
     const checkSession = async () => {
       try {
+        console.log('Checking session for reset password');
+
         const { data, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError || !data.session) {
+        if (sessionError) {
+          console.error('Session error:', sessionError);
           setTokenValid(false);
-          setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
+          setError('Lỗi khi kiểm tra phiên đăng nhập: ' + sessionError.message);
+          setValidating(false);
+          return;
+        }
+
+        if (!data.session) {
+          console.error('No session found');
+          setTokenValid(false);
+          setError(
+            'Không tìm thấy phiên đăng nhập. Vui lòng click lại link từ email hoặc yêu cầu link mới.'
+          );
         } else {
-          setTokenValid(true);
+          console.log('Session valid:', {
+            user: data.session.user?.email,
+            expiresAt: data.session.expires_at,
+          });
+
+          // Check if session is expired
+          if (
+            data.session.expires_at &&
+            data.session.expires_at < Date.now() / 1000
+          ) {
+            console.error('Session expired');
+            setTokenValid(false);
+            setError(
+              'Phiên đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu link mới.'
+            );
+          } else {
+            setTokenValid(true);
+          }
         }
       } catch (err) {
         console.error('Session check error:', err);
         setTokenValid(false);
-        setError('Không thể xác minh link đặt lại mật khẩu');
+        setError(
+          'Không thể xác minh link đặt lại mật khẩu: ' +
+            (err instanceof Error ? err.message : 'Unknown error')
+        );
       } finally {
         setValidating(false);
       }
