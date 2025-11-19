@@ -86,10 +86,72 @@ function AuthCallbackContent() {
           }
         }
 
-        // If we have a code parameter for non-recovery flows, exchange it for a session
+        // If we have a code parameter for non-recovery flows (email confirmation, signup)
+        // For email-based flows, Supabase may not support PKCE, so we try verifyOtp first
         if (code) {
-          console.log('Exchanging code for session:', { code, type });
+          console.log('Processing code for non-recovery flow:', { code, type });
 
+          // First, check if we already have a session (Supabase may create it automatically)
+          const { data: existingSession } = await supabase.auth.getSession();
+
+          if (existingSession?.session) {
+            console.log('Session already exists:', {
+              user: existingSession.session.user?.email,
+            });
+
+            // Initialize user if needed
+            const initResponse = await fetch('/api/auth/initialize-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (!initResponse.ok) {
+              console.error('Failed to initialize user');
+              setError('Không thể khởi tạo tài khoản người dùng');
+              setLoading(false);
+              return;
+            }
+
+            router.push('/');
+            return;
+          }
+
+          // Try verifyOtp first (for email confirmation flows)
+          console.log('Trying verifyOtp for email confirmation');
+          const { data: otpData, error: otpError } =
+            await supabase.auth.verifyOtp({
+              token_hash: code,
+              type: 'email', // For signup/email confirmation
+            });
+
+          if (!otpError && otpData?.session) {
+            console.log('OTP verified successfully:', {
+              user: otpData.session.user?.email,
+            });
+
+            // Initialize user
+            const initResponse = await fetch('/api/auth/initialize-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (!initResponse.ok) {
+              console.error('Failed to initialize user');
+              setError('Không thể khởi tạo tài khoản người dùng');
+              setLoading(false);
+              return;
+            }
+
+            router.push('/');
+            return;
+          }
+
+          // If verifyOtp fails, try exchangeCodeForSession as fallback
+          console.log('verifyOtp failed, trying exchangeCodeForSession');
           const { data: exchangeData, error: exchangeError } =
             await supabase.auth.exchangeCodeForSession(code);
 
@@ -106,45 +168,14 @@ function AuthCallbackContent() {
               );
             } else if (exchangeError.message.includes('already been used')) {
               setError('Link này đã được sử dụng. Vui lòng yêu cầu link mới.');
-            } else if (exchangeError.message.includes('code verifier')) {
-              // For PKCE flow, try verifyOtp instead
-              console.log('PKCE error detected, trying verifyOtp');
-              const { data: otpData, error: otpError } =
-                await supabase.auth.verifyOtp({
-                  token_hash: code,
-                  type: 'email', // Default to email for non-recovery flows
-                });
-
-              if (otpError || !otpData?.session) {
-                setError(
-                  'Link không hợp lệ: ' +
-                    (otpError?.message || exchangeError.message)
-                );
-                setLoading(false);
-                return;
-              }
-
-              // OTP verified successfully
-              console.log('OTP verified successfully');
-              const { data: sessionData } = await supabase.auth.getSession();
-
-              if (sessionData?.session) {
-                const initResponse = await fetch('/api/auth/initialize-user', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                });
-
-                if (!initResponse.ok) {
-                  console.error('Failed to initialize user');
-                  setError('Không thể khởi tạo tài khoản người dùng');
-                  return;
-                }
-
-                router.push('/');
-                return;
-              }
+            } else if (
+              exchangeError.message.includes('code verifier') ||
+              exchangeError.message.includes('non-empty')
+            ) {
+              // PKCE error - verifyOtp already tried above, show error
+              setError(
+                'Link xác nhận không hợp lệ. Vui lòng kiểm tra email và thử lại.'
+              );
             } else {
               setError(`Link không hợp lệ: ${exchangeError.message}`);
             }
