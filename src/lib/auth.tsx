@@ -15,6 +15,8 @@ interface AuthContextType {
     password: string,
     gameAccount: string
   ) => Promise<void>;
+  verifySignupOtp: (email: string, token: string) => Promise<Session | null>;
+  resendSignupOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -79,11 +81,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           full_name: gameAccount,
         },
       },
+    });
+
+    if (error) throw error;
+  };
+
+  const verifySignupOtp = async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+
+    if (error) throw error;
+
+    setSession(data.session ?? null);
+    setUser(data.session?.user ?? null);
+
+    return data.session ?? null;
+  };
+
+  const resendSignupOtp = async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
     });
 
     if (error) throw error;
@@ -127,6 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     signIn,
     signUp,
+    verifySignupOtp,
+    resendSignupOtp,
     signOut,
     verifyEmail,
     resetPassword,
