@@ -23,50 +23,50 @@ function TopupResultContent() {
     if (isSuccess) {
       const timer = setTimeout(() => {
         setIsClosing(true);
-        // Try to go back or close
+        // Nếu là popup (window.opener tồn tại), đóng cửa sổ
         if (window.opener && !window.opener.closed) {
+          // Gửi thông báo cho parent window để refresh balance (nếu cần)
+          try {
+            window.opener.postMessage(
+              { type: 'topup-success', txRef },
+              window.location.origin
+            );
+          } catch {
+            // Ignore cross-origin errors
+          }
           window.opener.focus();
           window.close();
-        } else if (window.history.length > 1) {
-          window.history.back();
         } else {
+          // Nếu không phải popup, redirect về wallet (không dùng history.back để tránh quay lại trang PayOS)
           window.location.href = '/wallet';
         }
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [isSuccess]);
+  }, [isSuccess, txRef]);
 
   const handleClose = () => {
     setIsClosing(true);
 
     // Check if this window was opened by another window (popup)
     if (window.opener && !window.opener.closed) {
+      // Gửi thông báo cho parent window để refresh balance (nếu cần)
+      try {
+        window.opener.postMessage(
+          { type: 'topup-success', txRef },
+          window.location.origin
+        );
+      } catch {
+        // Ignore cross-origin errors
+      }
       // If opened in popup, close this window and focus the opener
       window.opener.focus();
       window.close();
       return;
     }
 
-    // Try to go back in history first
-    if (window.history.length > 1) {
-      // Check if we can go back (user came from another page)
-      try {
-        window.history.back();
-        // Fallback: if back doesn't work, redirect to wallet
-        setTimeout(() => {
-          if (!document.hidden) {
-            window.location.href = '/wallet';
-          }
-        }, 500);
-      } catch {
-        // If history.back() fails, redirect to wallet
-        window.location.href = '/wallet';
-      }
-    } else {
-      // No history, redirect to wallet
-      window.location.href = '/wallet';
-    }
+    // Nếu không phải popup, redirect về wallet (không dùng history.back để tránh quay lại trang PayOS)
+    window.location.href = '/wallet';
   };
 
   return (
