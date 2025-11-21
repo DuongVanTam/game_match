@@ -352,7 +352,9 @@ async function startMatch(roomId: string) {
 
     // Get active members
     const activeMembers =
-      room.room_players?.filter((player) => player.status === 'active') ?? [];
+      room.room_players?.filter(
+        (player: { status: string | null }) => player.status === 'active'
+      ) ?? [];
 
     if (activeMembers.length < 2) {
       console.log(
@@ -409,13 +411,15 @@ async function startMatch(roomId: string) {
     console.log(`   📝 Created match: ${match.id} (Round ${nextRound})`);
 
     // Step 2: Create match_players
-    const matchPlayersPayload = activeMembers.map((member) => ({
-      match_id: match.id,
-      room_player_id: member.id,
-      user_id: member.user_id,
-      status: 'active',
-      joined_at: now,
-    }));
+    const matchPlayersPayload = activeMembers.map(
+      (member: { id: string; user_id: string; status: string | null }) => ({
+        match_id: match.id,
+        room_player_id: member.id,
+        user_id: member.user_id,
+        status: 'active',
+        joined_at: now,
+      })
+    );
 
     const { error: playersInsertError } = await supabase
       .from('match_players')
