@@ -8,6 +8,10 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+// Cache this page for 7 days (604800 seconds)
+// Pages are regenerated at most once per week
+export const revalidate = 604800;
+
 export default function HowItWorksPage() {
   return (
     <div className="min-h-screen bg-gray-50">

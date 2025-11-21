@@ -1,6 +1,10 @@
 import { Navigation } from '@/components/Navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+// Cache this page for 7 days (604800 seconds)
+// Pages are regenerated at most once per week
+export const revalidate = 604800;
+
 export default function TermsOfServicePage() {
   return (
     <div className="min-h-screen bg-gray-50">

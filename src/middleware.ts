@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { withTimeoutOrNull } from '@/lib/timeout';
 
 // Rate limiting store (in production, use Redis or database)
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
@@ -13,6 +14,71 @@ const RATE_LIMIT = {
   readApiMaxRequests: 500, // 500 requests for read-only endpoints
   writeApiMaxRequests: 50, // 50 requests for write operations
 };
+
+// Timeout for Supabase auth operations in middleware (5 seconds)
+// Middleware has strict timeout limits, so we need fast responses
+const MIDDLEWARE_AUTH_TIMEOUT_MS = 5000;
+
+// Protected routes that require authentication
+const PROTECTED_ROUTES = [
+  '/wallet',
+  '/matches/create',
+  '/matches/my',
+  '/admin', // Admin routes require auth, but role check is in handlers
+];
+
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/',
+  '/auth',
+  '/matches', // Public match listing and details (but /matches/create is protected)
+  '/privacy',
+  '/terms',
+  '/faq',
+  '/contact',
+  '/how-it-works',
+  '/test-sse', // Testing endpoint
+];
+
+// Public API routes that don't require authentication
+const PUBLIC_API_ROUTES = [
+  '/api/auth',
+  '/api/matches', // Public match listing
+];
+
+/**
+ * Check if a route is protected (requires authentication)
+ */
+function isProtectedRoute(pathname: string): boolean {
+  return PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+/**
+ * Check if a route is public (no auth required)
+ * Protected routes take precedence over public routes
+ */
+function isPublicRoute(pathname: string): boolean {
+  // Protected routes take precedence
+  if (isProtectedRoute(pathname)) {
+    return false;
+  }
+
+  // Check exact matches first
+  if (PUBLIC_ROUTES.includes(pathname)) {
+    return true;
+  }
+
+  // Check if pathname starts with any public route
+  // This allows /matches and /matches/[id] but not /matches/create
+  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+/**
+ * Check if an API route is public (no auth required)
+ */
+function isPublicApiRoute(pathname: string): boolean {
+  return PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route));
+}
 
 function getRateLimitKey(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -148,53 +214,66 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // Authentication middleware
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-        },
-      },
-    }
-  );
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Skip authentication check for public routes to reduce middleware timeout
+  const isPublic = isPublicRoute(pathname) || isPublicApiRoute(pathname);
 
-  // Protected routes that require authentication
-  const protectedRoutes = ['/wallet', '/matches/create', '/matches/my'];
-  const adminRoutes = ['/admin'];
+  // Only perform auth check for protected routes
+  let session = null;
+  if (!isPublic) {
+    try {
+      // Only check session for protected routes
+      if (isProtectedRoute(pathname)) {
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() {
+                return request.cookies.getAll();
+              },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value }) =>
+                  request.cookies.set(name, value)
+                );
+              },
+            },
+          }
+        );
 
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
-  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+        // Use timeout to prevent middleware timeout errors
+        const sessionResult = await withTimeoutOrNull(
+          supabase.auth.getSession(),
+          MIDDLEWARE_AUTH_TIMEOUT_MS
+        );
 
-  // Redirect to login if accessing protected route without session
-  if (isProtectedRoute && !session) {
-    const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+        // If timeout occurs, sessionResult will be null
+        // In this case, we'll treat it as no session for safety
+        if (sessionResult) {
+          session = sessionResult.data?.session || null;
+        }
 
-  // Check admin access for admin routes
-  if (isAdminRoute && session) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
+        // Redirect to login if accessing protected route without session
+        if (!session) {
+          const loginUrl = new URL('/auth/login', request.url);
+          loginUrl.searchParams.set('redirectTo', pathname);
+          return NextResponse.redirect(loginUrl);
+        }
+      }
 
-    if (user?.role !== 'admin') {
-      return new NextResponse('Forbidden', { status: 403 });
+      // Note: Admin route access is now checked in route handlers
+      // (see src/lib/auth-server.ts requireAdmin() function)
+      // This reduces middleware execution time and prevents timeout errors
+    } catch (error) {
+      // Log error but don't block the request if auth check fails
+      // This prevents middleware crashes from blocking all requests
+      console.error('Middleware auth check error:', error);
+
+      // For protected routes, if auth check fails, redirect to login
+      if (isProtectedRoute(pathname)) {
+        const loginUrl = new URL('/auth/login', request.url);
+        loginUrl.searchParams.set('redirectTo', pathname);
+        return NextResponse.redirect(loginUrl);
+      }
     }
   }
 
@@ -206,6 +285,36 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'origin-when-cross-origin');
   response.headers.set('X-XSS-Protection', '1; mode=block');
+
+  // Cache headers for static pages (long cache time, revalidate on CDN)
+  // These pages rarely change, so we can cache them aggressively
+  const staticPages = [
+    '/privacy',
+    '/terms',
+    '/faq',
+    '/how-it-works',
+    '/contact',
+  ];
+
+  const isStaticPage = staticPages.some((route) => pathname.startsWith(route));
+
+  if (isStaticPage && request.method === 'GET') {
+    // Cache for 1 day in browser, 1 week on CDN (Vercel Edge Network)
+    // stale-while-revalidate allows serving stale content while revalidating
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=604800, stale-while-revalidate=86400, max-age=86400'
+    );
+  }
+
+  // Cache for homepage (less aggressive since it might have dynamic content)
+  if (pathname === '/' && request.method === 'GET') {
+    // Cache for 1 hour in browser, 6 hours on CDN
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=21600, stale-while-revalidate=3600, max-age=3600'
+    );
+  }
 
   // CORS headers for API routes
   if (isApiRoute) {

@@ -19,6 +19,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Cache this page for 7 days (604800 seconds)
+// Pages are regenerated at most once per week
+export const revalidate = 604800;
+
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-gray-50">
