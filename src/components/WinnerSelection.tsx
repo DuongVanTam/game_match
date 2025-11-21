@@ -234,46 +234,6 @@ export function WinnerSelection({
                 </div>
               </div>
             )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleConfirmWinner}
-                disabled={!selectedWinner || disabled || confirming}
-                className="flex-1"
-              >
-                {confirming ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Đang xác nhận...
-                  </>
-                ) : (
-                  <>
-                    <Trophy className="h-4 w-4 mr-2" />
-                    Xác nhận người thắng
-                  </>
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={onCancel}
-                disabled={disabled || confirming}
-              >
-                Hủy
-              </Button>
-            </div>
-
-            {selectedWinner && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Bạn đã chọn người thắng cuộc. Sau khi xác nhận, trận đấu sẽ
-                  được hoàn tất và giải thưởng sẽ được chuyển vào ví của người
-                  thắng.
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
         </CardContent>
       </Card>
