@@ -20,6 +20,29 @@ export const metadata: Metadata = {
     icon: '/logo.png',
     apple: '/logo.png',
   },
+  openGraph: {
+    title: 'TFT Match - Skill-Based Tournaments',
+    description:
+      'Tham gia các giải đấu Teamfight Tactics dựa trên kỹ năng. Thắng giải thưởng thật từ mỗi trận đấu!',
+    siteName: 'TFT Match',
+    images: [
+      {
+        url: '/YasuoBG.avif',
+        width: 1200,
+        height: 630,
+        alt: 'TFT Match - Skill-Based Tournaments',
+      },
+    ],
+    locale: 'vi_VN',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TFT Match - Skill-Based Tournaments',
+    description:
+      'Tham gia các giải đấu Teamfight Tactics dựa trên kỹ năng. Thắng giải thưởng thật từ mỗi trận đấu!',
+    images: ['/YasuoBG.avif'],
+  },
 };
 
 export default function RootLayout({
