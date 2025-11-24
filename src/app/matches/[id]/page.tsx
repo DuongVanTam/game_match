@@ -635,18 +635,20 @@ export default function MatchDetailPage() {
       if (bestCandidate?.userId) {
         setSuggestedWinnerId(bestCandidate.userId);
         if (options?.autoSettle) {
-          try {
-            await handleSelectWinner(
-              bestCandidate.userId,
-              analysis.placements ?? null,
-              targetImageUrl
-            );
-          } catch (error) {
-            console.error('Auto settle failed:', error);
-            setAnalysisError(
-              'Không thể hoàn tất trận đấu tự động. Vui lòng thử lại hoặc chọn thủ công.'
-            );
-          }
+          setTimeout(async () => {
+            try {
+              await handleSelectWinner(
+                bestCandidate.userId,
+                analysis.placements ?? null,
+                targetImageUrl
+              );
+            } catch (error) {
+              console.error('Auto settle failed:', error);
+              setAnalysisError(
+                'Không thể hoàn tất trận đấu tự động. Vui lòng thử lại hoặc chọn thủ công.'
+              );
+            }
+          }, 2000);
         } else {
           showNotification(
             'success',

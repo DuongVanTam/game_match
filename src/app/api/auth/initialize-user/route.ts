@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Create wallet for the new user
     const { error: walletError } = await adminClient.from('wallets').insert({
       user_id: authUser.id,
-      balance: 0,
+      balance: 20000,
     });
 
     if (walletError) {
