@@ -15,9 +15,10 @@ const RATE_LIMIT = {
   writeApiMaxRequests: 50, // 50 requests for write operations
 };
 
-// Timeout for Supabase auth operations in middleware (5 seconds)
-// Middleware has strict timeout limits, so we need fast responses
-const MIDDLEWARE_AUTH_TIMEOUT_MS = 5000;
+// Timeout for Supabase auth operations in middleware (2 seconds)
+// Vercel middleware has a 25s limit, but we want to fail fast
+// If Supabase is slow, we should redirect to login quickly rather than timeout
+const MIDDLEWARE_AUTH_TIMEOUT_MS = 2000;
 
 // Protected routes that require authentication
 const PROTECTED_ROUTES = [
@@ -109,7 +110,8 @@ function isRateLimited(key: string, maxRequests: number): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip rate limiting for static files and internal Next.js routes
+  // Early return for static files and internal Next.js routes
+  // This is the fastest path - no processing needed
   if (
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/api/_next/') ||
@@ -117,6 +119,52 @@ export async function middleware(request: NextRequest) {
     pathname === '/favicon.ico'
   ) {
     return NextResponse.next();
+  }
+
+  // Early return for public routes that don't need any middleware processing
+  // This reduces middleware execution time significantly
+  const isPublic = isPublicRoute(pathname) || isPublicApiRoute(pathname);
+  const isProtected = isProtectedRoute(pathname);
+
+  // For public, non-protected routes, skip to security headers only
+  // No auth check, no rate limiting needed for most public routes
+  if (isPublic && !isProtected) {
+    // Skip rate limiting for public pages to reduce processing time
+    const response = NextResponse.next();
+
+    // Add security headers
+    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('Referrer-Policy', 'origin-when-cross-origin');
+    response.headers.set('X-XSS-Protection', '1; mode=block');
+
+    // Cache headers for static pages
+    const staticPages = [
+      '/privacy',
+      '/terms',
+      '/faq',
+      '/how-it-works',
+      '/contact',
+    ];
+    const isStaticPage = staticPages.some((route) =>
+      pathname.startsWith(route)
+    );
+
+    if (isStaticPage && request.method === 'GET') {
+      response.headers.set(
+        'Cache-Control',
+        'public, s-maxage=604800, stale-while-revalidate=86400, max-age=86400'
+      );
+    }
+
+    if (pathname === '/' && request.method === 'GET') {
+      response.headers.set(
+        'Cache-Control',
+        'public, s-maxage=21600, stale-while-revalidate=3600, max-age=3600'
+      );
+    }
+
+    return response;
   }
 
   // Skip rate limiting for SSE (Server-Sent Events) endpoints
@@ -214,31 +262,31 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // Skip authentication check for public routes to reduce middleware timeout
-  const isPublic = isPublicRoute(pathname) || isPublicApiRoute(pathname);
-
-  // Only perform auth check for protected routes
-  let session = null;
-  if (!isPublic) {
+  // Only check auth for protected routes (not public routes)
+  if (isProtected) {
+    // Only check auth for protected routes
     try {
-      // Only check session for protected routes
-      if (isProtectedRoute(pathname)) {
-        const supabase = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          {
-            cookies: {
-              getAll() {
-                return request.cookies.getAll();
-              },
-              setAll(cookiesToSet) {
-                cookiesToSet.forEach(({ name, value }) =>
-                  request.cookies.set(name, value)
-                );
-              },
+      // Verify environment variables are available
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error('Missing Supabase environment variables in middleware');
+        // If env vars are missing, allow request through but log error
+        // This prevents middleware from blocking all requests
+      } else {
+        const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll();
             },
-          }
-        );
+            setAll(cookiesToSet) {
+              cookiesToSet.forEach(({ name, value }) =>
+                request.cookies.set(name, value)
+              );
+            },
+          },
+        });
 
         // Use timeout to prevent middleware timeout errors
         const sessionResult = await withTimeoutOrNull(
@@ -248,9 +296,7 @@ export async function middleware(request: NextRequest) {
 
         // If timeout occurs, sessionResult will be null
         // In this case, we'll treat it as no session for safety
-        if (sessionResult) {
-          session = sessionResult.data?.session || null;
-        }
+        const session = sessionResult?.data?.session || null;
 
         // Redirect to login if accessing protected route without session
         if (!session) {
@@ -259,23 +305,19 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(loginUrl);
         }
       }
-
-      // Note: Admin route access is now checked in route handlers
-      // (see src/lib/auth-server.ts requireAdmin() function)
-      // This reduces middleware execution time and prevents timeout errors
     } catch (error) {
       // Log error but don't block the request if auth check fails
       // This prevents middleware crashes from blocking all requests
       console.error('Middleware auth check error:', error);
 
       // For protected routes, if auth check fails, redirect to login
-      if (isProtectedRoute(pathname)) {
-        const loginUrl = new URL('/auth/login', request.url);
-        loginUrl.searchParams.set('redirectTo', pathname);
-        return NextResponse.redirect(loginUrl);
-      }
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
+  // For non-public, non-protected routes (e.g., some API routes), allow through
+  // Auth will be checked in the route handler if needed
 
   // Add security headers
   const response = NextResponse.next();
