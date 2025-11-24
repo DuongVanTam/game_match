@@ -139,6 +139,7 @@ export default function MatchDetailPage() {
   const copyAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+  const previousMatchStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -195,6 +196,26 @@ export default function MatchDetailPage() {
 
   const clearNotification = () => setNotification(null);
 
+  // Fetch current user's wallet balance
+  const fetchWalletBalance = useCallback(async () => {
+    if (!currentUserId) {
+      setWalletBalance(null);
+      return;
+    }
+    try {
+      const res = await fetch('/api/wallet/balance', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const bal =
+        typeof data?.balance === 'number'
+          ? data.balance
+          : Number(data?.balance ?? 0);
+      setWalletBalance(bal);
+    } catch {
+      // ignore silently; UI will just omit balance
+    }
+  }, [currentUserId]);
+
   const fetchRoom = useCallback(async () => {
     try {
       const response = await fetch(`/api/matches/${roomId}`, {
@@ -202,7 +223,10 @@ export default function MatchDetailPage() {
       });
       if (response.ok) {
         const data = await response.json();
+        const previousMatchStatus = room?.latest_match?.status;
+        const currentMatchStatus = data.latest_match?.status;
         setRoom(data);
+
         // Check if current user has joined this room
         if (currentUserId) {
           setUserJoined(
@@ -211,6 +235,21 @@ export default function MatchDetailPage() {
                 player.user_id === currentUserId && player.status === 'active'
             )
           );
+        }
+
+        // If match status is completed and either:
+        // 1. Status just changed to completed (previous was not completed)
+        // 2. This is first load and match is already completed
+        // Then refresh wallet balance for all users
+        if (
+          currentMatchStatus === 'completed' &&
+          previousMatchStatus !== 'completed' &&
+          currentUserId
+        ) {
+          // Delay to ensure database transaction is committed
+          setTimeout(() => {
+            void fetchWalletBalance();
+          }, 500);
         }
       }
     } catch (error) {
@@ -222,7 +261,7 @@ export default function MatchDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [roomId, currentUserId]);
+  }, [roomId, currentUserId, room?.latest_match?.status, fetchWalletBalance]);
 
   useEffect(() => {
     if (roomId) {
@@ -529,6 +568,7 @@ export default function MatchDetailPage() {
         setAnalysisResult(null);
         setAnalysisError(null);
         setSuggestedWinnerId(null);
+        fetchWalletBalance();
       } else {
         const error = await response.json();
         const message =
@@ -747,29 +787,33 @@ export default function MatchDetailPage() {
     return labels[status] || status;
   };
 
-  // Fetch current user's wallet balance
-  const fetchWalletBalance = useCallback(async () => {
-    if (!currentUserId) {
-      setWalletBalance(null);
-      return;
-    }
-    try {
-      const res = await fetch('/api/wallet/balance', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = await res.json();
-      const bal =
-        typeof data?.balance === 'number'
-          ? data.balance
-          : Number(data?.balance ?? 0);
-      setWalletBalance(bal);
-    } catch {
-      // ignore silently; UI will just omit balance
-    }
-  }, [currentUserId]);
-
   useEffect(() => {
     void fetchWalletBalance();
   }, [fetchWalletBalance]);
+
+  // Auto-refresh wallet balance when match status changes to completed
+  useEffect(() => {
+    if (!room?.latest_match || !currentUserId) return;
+
+    const matchStatus = room.latest_match.status;
+    const previousStatus = previousMatchStatusRef.current;
+
+    // Only refresh balance when status changes from non-completed to completed
+    if (matchStatus === 'completed' && previousStatus !== 'completed') {
+      // Add a small delay to ensure database transaction is committed
+      const timeoutId = setTimeout(() => {
+        void fetchWalletBalance();
+      }, 1000);
+
+      // Update ref to current status
+      previousMatchStatusRef.current = matchStatus;
+
+      return () => clearTimeout(timeoutId);
+    } else if (matchStatus !== previousStatus) {
+      // Update ref when status changes (even if not to completed)
+      previousMatchStatusRef.current = matchStatus;
+    }
+  }, [room?.latest_match?.status, currentUserId, fetchWalletBalance]);
 
   if (loading) {
     return (
