@@ -42,45 +42,131 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If user already exists, return success
-    if (existingUser) {
-      return NextResponse.json({
-        success: true,
-        message: 'User already initialized',
-        userId: existingUser.id,
-      });
+    // Create user record if it doesn't exist
+    if (!existingUser) {
+      const { error: insertUserError } = await adminClient
+        .from('users')
+        .insert({
+          id: authUser.id,
+          email: authUser.email!,
+          full_name:
+            authUser.user_metadata?.full_name ||
+            authUser.user_metadata?.name ||
+            null,
+          avatar_url: authUser.user_metadata?.avatar_url || null,
+          role: 'user',
+        });
+
+      if (insertUserError) {
+        console.error('Error creating user:', insertUserError);
+        return NextResponse.json(
+          { error: 'Failed to create user record' },
+          { status: 500 }
+        );
+      }
     }
 
-    // Create new user record
-    const { error: insertUserError } = await adminClient.from('users').insert({
-      id: authUser.id,
-      email: authUser.email!,
-      full_name:
-        authUser.user_metadata?.full_name ||
-        authUser.user_metadata?.name ||
-        null,
-      avatar_url: authUser.user_metadata?.avatar_url || null,
-      role: 'user',
-    });
+    // Check if wallet already exists
+    const { data: existingWallet, error: walletCheckError } = await adminClient
+      .from('wallets')
+      .select('id, balance')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
 
-    if (insertUserError) {
-      console.error('Error creating user:', insertUserError);
+    if (walletCheckError) {
+      console.error('Error checking wallet:', walletCheckError);
       return NextResponse.json(
-        { error: 'Failed to create user record' },
+        { error: 'Failed to check wallet existence' },
         { status: 500 }
       );
     }
 
-    // Create wallet for the new user
-    const { error: walletError } = await adminClient.from('wallets').insert({
-      user_id: authUser.id,
-      balance: 20000,
-    });
+    // Check if user already has a signup bonus ledger entry
+    const { data: existingSignupBonus } = await adminClient
+      .from('ledger')
+      .select('id')
+      .eq('user_id', authUser.id)
+      .eq('reference_type', 'signup_bonus')
+      .maybeSingle();
 
-    if (walletError) {
-      console.error('Error creating wallet:', walletError);
-      // Don't fail the request if wallet creation fails
-      // The wallet can be created later
+    const initialBalance = 20000;
+
+    // Create wallet with initial balance if it doesn't exist
+    if (!existingWallet) {
+      const { error: walletError } = await adminClient.from('wallets').insert({
+        user_id: authUser.id,
+        balance: initialBalance,
+      });
+
+      if (walletError) {
+        console.error('Error creating wallet:', walletError);
+        return NextResponse.json(
+          { error: 'Failed to create wallet' },
+          { status: 500 }
+        );
+      }
+
+      // Add ledger entry for signup bonus if it doesn't exist
+      if (!existingSignupBonus) {
+        const { error: ledgerError } = await adminClient.from('ledger').insert({
+          user_id: authUser.id,
+          transaction_type: 'topup',
+          amount: initialBalance,
+          balance_after: initialBalance,
+          reference_id: authUser.id,
+          reference_type: 'signup_bonus',
+          description: 'Tặng tiền đăng ký tài khoản mới',
+          metadata: {
+            type: 'signup_bonus',
+            amount: initialBalance,
+          },
+        });
+
+        if (ledgerError) {
+          console.error(
+            'Error creating ledger entry for signup bonus:',
+            ledgerError
+          );
+          // Don't fail the request if ledger entry creation fails
+        }
+      }
+    } else if (!existingSignupBonus && existingWallet.balance === 0) {
+      // If wallet exists but balance is 0 and no signup bonus was given, add it
+      const { error: updateError } = await adminClient
+        .from('wallets')
+        .update({ balance: initialBalance })
+        .eq('user_id', authUser.id);
+
+      if (updateError) {
+        console.error('Error updating wallet balance:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to update wallet balance' },
+          { status: 500 }
+        );
+      }
+
+      // Add ledger entry for signup bonus
+      const { error: ledgerError } = await adminClient.from('ledger').insert({
+        user_id: authUser.id,
+        transaction_type: 'topup',
+        amount: initialBalance,
+        balance_after: initialBalance,
+        reference_id: authUser.id,
+        reference_type: 'signup_bonus',
+        description: 'Tặng tiền đăng ký tài khoản mới',
+        metadata: {
+          type: 'signup_bonus',
+          amount: initialBalance,
+        },
+      });
+
+      if (ledgerError) {
+        console.error(
+          'Error creating ledger entry for signup bonus:',
+          ledgerError
+        );
+        // Don't fail the request if ledger entry creation fails
+      }
     }
 
     return NextResponse.json({

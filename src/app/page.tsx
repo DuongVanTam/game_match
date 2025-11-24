@@ -14,10 +14,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/lib/auth';
 
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     // Handle auth code from Supabase (password reset, email confirmation, etc.)
@@ -34,6 +36,14 @@ function HomeContent() {
       router.replace(callbackUrl);
     }
   }, [searchParams, router]);
+
+  const handleGetStarted = () => {
+    if (user) {
+      router.push('/matches');
+    } else {
+      router.push('/auth/register');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,8 +66,8 @@ function HomeContent() {
               thực tế. Nền tảng thi đấu công bằng, minh bạch và an toàn.
             </p>
             <div className="flex gap-4 justify-center">
-              <Button size="lg" asChild>
-                <Link href="/auth/register">Bắt đầu ngay</Link>
+              <Button size="lg" onClick={handleGetStarted}>
+                Bắt đầu ngay
               </Button>
               <Button
                 size="lg"
@@ -205,18 +215,20 @@ function HomeContent() {
               size="lg"
               variant="outline"
               className="text-white border-white bg-blue hover:bg-white hover:text-gray-900"
-              asChild
+              onClick={handleGetStarted}
             >
-              <Link href="/auth/register">Đăng ký miễn phí</Link>
+              {user ? 'Xem giải đấu' : 'Đăng ký miễn phí'}
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-white border-white bg-blue hover:bg-white hover:text-gray-900"
-              asChild
-            >
-              <Link href="/matches">Xem giải đấu</Link>
-            </Button>
+            {!user && (
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-white border-white bg-blue hover:bg-white hover:text-gray-900"
+                asChild
+              >
+                <Link href="/matches">Xem giải đấu</Link>
+              </Button>
+            )}
           </div>
         </div>
       </section>
