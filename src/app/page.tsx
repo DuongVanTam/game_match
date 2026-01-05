@@ -48,8 +48,8 @@ function HomeContent() {
         if (typeof widget?.init === 'function') {
           try {
             widget.init({
-              tenantId: 'demo-tenant',
-              apiUrl: window.location.origin, // Use current origin as API URL
+              tenantId: 'd9509704-e649-4415-bb6a-6e56379dc668',
+              apiUrl: 'https://customerchat.app', // Use current origin as API URL
               position: 'bottom-right',
               primaryColor: '#007bff',
               bubbleColor: '#007bff',
