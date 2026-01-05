@@ -1,5 +1,6 @@
 'use client';
 
+import Script from 'next/script';
 import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -16,10 +17,63 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/auth';
 
+interface ChatWidget {
+  init: (config: {
+    tenantId: string;
+    apiUrl: string;
+    position: string;
+    primaryColor: string;
+    bubbleColor: string;
+  }) => void;
+}
+
+interface WindowWithChatWidget extends Window {
+  ChatWidget?: ChatWidget;
+}
+
 function HomeContent() {
+  const initializeWidget = () => {
+    // Wait a bit to ensure widget is fully loaded
+    const tryInit = (attempts = 0) => {
+      if (attempts > 20) {
+        console.error('Failed to initialize widget after 20 attempts');
+        return;
+      }
+
+      if (
+        typeof window !== 'undefined' &&
+        (window as WindowWithChatWidget).ChatWidget
+      ) {
+        const widget = (window as WindowWithChatWidget).ChatWidget;
+        if (typeof widget?.init === 'function') {
+          try {
+            widget.init({
+              tenantId: 'demo-tenant',
+              apiUrl: window.location.origin, // Use current origin as API URL
+              position: 'bottom-right',
+              primaryColor: '#007bff',
+              bubbleColor: '#007bff',
+            });
+            console.log('✅ Widget initialized successfully');
+          } catch (error) {
+            console.error('❌ Error initializing widget:', error);
+          }
+        } else {
+          // Widget not ready yet, retry
+          setTimeout(() => tryInit(attempts + 1), 100);
+        }
+      } else {
+        // Widget not loaded yet, retry
+        setTimeout(() => tryInit(attempts + 1), 100);
+      }
+    };
+
+    tryInit();
+  };
+
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Handle auth code from Supabase (password reset, email confirmation, etc.)
@@ -47,6 +101,31 @@ function HomeContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Polyfill for process.env */}
+      <Script
+        id="process-polyfill"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            if (typeof process === 'undefined') {
+              window.process = { env: { NODE_ENV: 'production' } };
+            }
+          `,
+        }}
+      />
+
+      {/* Chat Widget Script */}
+      <Script
+        src="https://customerchat.app/widget.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          // Initialize widget after script loads
+          setTimeout(initializeWidget, 100);
+        }}
+        onError={(e) => {
+          console.error('Failed to load widget script:', e);
+        }}
+      />
       <Navigation />
 
       {/* Hero Section */}
