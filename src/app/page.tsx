@@ -118,10 +118,10 @@ function HomeContent() {
       <Script
         src="https://customerchat.app/widget.js"
         strategy="afterInteractive"
-        onLoad={() => {
-          // Initialize widget after script loads
-          setTimeout(initializeWidget, 100);
-        }}
+        data-tenant-id="d9509704-e649-4415-bb6a-6e56379dc668"
+        data-primary-color="#007bff"
+        data-title="Hỗ trợ khách hàng"
+        data-logo-url="https://storage.googleapis.com/filum_platform_uploads/Logo HHM-f2eadac4-2658-414c-8998-0f0b3c8db558.jpg"
         onError={(e) => {
           console.error('Failed to load widget script:', e);
         }}
